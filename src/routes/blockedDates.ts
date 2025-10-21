@@ -1,0 +1,46 @@
+import express, { Router } from 'express';
+import { validate } from '../middleware/validate.middleware';
+import { createBlockedDateSchema, updateBlockedDateSchema, dateRangeSchema } from '../models/blockedDate';
+
+import {
+  getAllBlockedDates,
+  getBlockedDatesByMonth,
+  checkDateBlocked,
+  getBlockedDatesInRange,
+  createBlockedDate,
+  updateBlockedDate,
+  deleteBlockedDate,
+  deleteBlockedDateByDate,
+  debugBlockedDates,
+} from '../controllers/blockedDates';
+
+const router: Router = express.Router();
+
+// Get all blocked dates
+router.get('/', getAllBlockedDates);
+
+// Debug endpoint for troubleshooting
+router.get('/debug', debugBlockedDates);
+
+// Get blocked dates for specific month
+router.get('/month/:year/:month', getBlockedDatesByMonth);
+
+// Check if specific date is blocked
+router.get('/check/:date', checkDateBlocked);
+
+// Get blocked dates in date range
+router.get('/range', getBlockedDatesInRange);
+
+// Create new blocked date
+router.post('/', validate(createBlockedDateSchema), createBlockedDate);
+
+// Update blocked date
+router.put('/:id', validate(updateBlockedDateSchema), updateBlockedDate);
+
+// Delete blocked date by ID
+router.delete('/:id', deleteBlockedDate);
+
+// Delete blocked date by date
+router.delete('/date/:date', deleteBlockedDateByDate);
+
+export default router;

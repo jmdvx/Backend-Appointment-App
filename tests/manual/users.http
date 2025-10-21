@@ -1,0 +1,27 @@
+
+@endpoint =http://localhost:3000/api/v1/users
+
+### Login as James
+POST {{endpoint}}/login HTTP/1.1
+content-type: application/json
+
+{
+  "email": "jamesdevers2021@gmail.com",
+  "password": "admin123456"
+}
+
+###
+
+### Create James as admin user
+# @name createJames
+POST {{endpoint}} HTTP/1.1
+content-type: application/json
+
+{
+  "name": "James",
+  "email": "jamesdevers2021@gmail.com",
+  "password": "admin123456",
+  "dob": "1995-06-15",
+  "phonenumber": "0871234567",
+  "role": "admin"
+}

@@ -1,0 +1,32 @@
+@endpoint =http://localhost:3000/api/v1/appointments
+
+### Create appointment from booking form
+# Replace userId with James's actual user ID after creating him
+# First create James: POST http://localhost:3000/api/v1/users with the user data
+# Then copy his _id from the response and replace the userId below
+POST {{endpoint}} HTTP/1.1
+content-type: application/json
+
+{
+  "userId": "REPLACE_WITH_JAMES_USER_ID",
+  "title": "Booked Appointment",
+  "description": "Created from booking form",
+  "date": "2025-10-20T14:30:00.000Z",
+  "location": "Online",
+  "attendees": [
+    { "name": "Jane Doe", "email": "jane@example.com", "rsvp": "yes" }
+  ]
+}
+
+### Debug endpoint to see all appointments and their userIds
+GET {{endpoint}}/debug HTTP/1.1
+content-type: application/json
+
+### Get all appointments for a specific user
+# Replace USER_ID with the actual user ID
+GET {{endpoint}}/user/USER_ID HTTP/1.1
+content-type: application/json
+
+### Get all appointments for James (current user)
+GET {{endpoint}}/user/68f64695199f43daeacbc3f2 HTTP/1.1
+content-type: application/json

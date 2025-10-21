@@ -1,0 +1,81 @@
+@endpoint = http://localhost:3000/api/v1/blocked-dates
+
+### Get all blocked dates
+GET {{endpoint}} HTTP/1.1
+content-type: application/json
+
+### Get blocked dates for specific month (January 2024)
+GET {{endpoint}}/month/2024/1 HTTP/1.1
+content-type: application/json
+
+### Check if specific date is blocked
+GET {{endpoint}}/check/2024-01-17 HTTP/1.1
+content-type: application/json
+
+### Get blocked dates in date range
+GET {{endpoint}}/range?start=2024-01-01&end=2024-01-31 HTTP/1.1
+content-type: application/json
+
+### Create new blocked date
+POST {{endpoint}} HTTP/1.1
+content-type: application/json
+
+{
+  "date": "2024-01-17",
+  "reason": "Personal day off",
+  "recurringPattern": "none"
+}
+
+### Create another blocked date
+POST {{endpoint}} HTTP/1.1
+content-type: application/json
+
+{
+  "date": "2024-01-25",
+  "reason": "Holiday",
+  "recurringPattern": "yearly"
+}
+
+### Update blocked date (replace ID with actual ID from create response)
+PUT {{endpoint}}/REPLACE_WITH_ACTUAL_ID HTTP/1.1
+content-type: application/json
+
+{
+  "reason": "Updated reason - Family event"
+}
+
+### Delete blocked date by ID (replace ID with actual ID)
+DELETE {{endpoint}}/REPLACE_WITH_ACTUAL_ID HTTP/1.1
+content-type: application/json
+
+### Delete blocked date by date
+DELETE {{endpoint}}/date/2024-01-17 HTTP/1.1
+content-type: application/json
+
+### Test error cases
+
+### Invalid date format
+POST {{endpoint}} HTTP/1.1
+content-type: application/json
+
+{
+  "date": "invalid-date",
+  "reason": "Test error"
+}
+
+### Try to block already blocked date
+POST {{endpoint}} HTTP/1.1
+content-type: application/json
+
+{
+  "date": "2024-01-25",
+  "reason": "Duplicate test"
+}
+
+### Invalid month
+GET {{endpoint}}/month/2024/13 HTTP/1.1
+content-type: application/json
+
+### Invalid date range
+GET {{endpoint}}/range?start=invalid&end=2024-01-31 HTTP/1.1
+content-type: application/json
