@@ -34,7 +34,11 @@ const corsOptions = {
       'https://kdbeautyappointmentapp.netlify.app',
       'https://kdbeautyappointmentapp.netlify.app/',
       'https://www.kdbeautyappointmentapp.netlify.app',
-      'https://www.kdbeautyappointmentapp.netlify.app/'
+      'https://www.kdbeautyappointmentapp.netlify.app/',
+      'https://kdbeauty.vercel.app',
+      'https://kdbeauty.vercel.app/',
+      'https://www.kdbeauty.vercel.app',
+      'https://www.kdbeauty.vercel.app/'
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
