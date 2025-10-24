@@ -14,11 +14,7 @@ const client = new MongoClient(connectionString, {
     maxPoolSize: 10, // Maintain up to 10 socket connections
     minPoolSize: 2, // Maintain a couple of socket connections
     retryWrites: true, // Retry writes on network errors
-    retryReads: true, // Retry reads on network errors
-    // Fix TLS compatibility issues with Render/Node.js 25
-    tls: true,
-    tlsAllowInvalidCertificates: false,
-    tlsAllowInvalidHostnames: false
+    retryReads: true // Retry reads on network errors
 });
 
 export const collections: { users?: Collection, appointments?: Collection, blockedDates?: Collection } = {}
