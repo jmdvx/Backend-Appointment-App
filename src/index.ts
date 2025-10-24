@@ -20,7 +20,11 @@ initDb()
 
 // Configure CORS to allow requests from frontend
 app.use(cors({
-  origin: ['http://localhost:4200', 'http://127.0.0.1:4200'], // Angular dev server
+  origin: [
+    'http://localhost:4200', 
+    'http://127.0.0.1:4200', 
+    'https://kdbeautyappointmentapp.netlify.app' // Netlify production frontend
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'] // Add x-user-id header
