@@ -12,6 +12,12 @@ import {
   deleteBlockedDate,
   deleteBlockedDateByDate,
   debugBlockedDates,
+  // PERMANENT SOLUTION: New bulk operations
+  clearAllBlockedDates,
+  blockMultipleDates,
+  getBlockedDatesSummary,
+  validateBlockedDatesConsistency,
+  forceSyncBlockedDates,
 } from '../controllers/blockedDates';
 
 const router: Router = express.Router();
@@ -42,5 +48,21 @@ router.delete('/:id', deleteBlockedDate);
 
 // Delete blocked date by date
 router.delete('/date/:date', deleteBlockedDateByDate);
+
+// PERMANENT SOLUTION: Bulk operations for blocked dates management
+// Clear ALL blocked dates (emergency fix)
+router.delete('/clear-all', clearAllBlockedDates);
+
+// Block multiple dates at once
+router.post('/bulk-block', blockMultipleDates);
+
+// Get blocked dates summary (for frontend sync)
+router.get('/summary', getBlockedDatesSummary);
+
+// Validate blocked dates consistency
+router.get('/validate', validateBlockedDatesConsistency);
+
+// Force sync blocked dates (admin only)
+router.post('/force-sync', forceSyncBlockedDates);
 
 export default router;

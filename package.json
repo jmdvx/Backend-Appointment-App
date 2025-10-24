@@ -1,13 +1,21 @@
 {
-  "name": "initialsetup",
+  "name": "appointment-app-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Node.js backend for appointment booking system with user management and blocked dates",
+  "main": "build/server.js",
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "scripts": {
     "test": "jest --no-cache --detectOpenHandles",
     "build": "tsc",
     "start": "node build/server.js",
-    "dev": "nodemon"
+    "dev": "nodemon",
+    "dev:clean": "npx kill-port 3000 && npm run dev",
+    "dev:port": "PORT=3001 npm run dev",
+    "kill-port": "npx kill-port 3000",
+    "blocked-dates-admin": "ts-node blocked-dates-admin.ts",
+    "postinstall": "npm run build"
   },
   "nodemonConfig": {
     "watch": [
@@ -22,12 +30,14 @@
   "type": "commonjs",
   "dependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/nodemailer": "^7.0.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "mongodb": "^6.20.0",
     "morgan": "^1.10.1",
+    "nodemailer": "^7.0.10",
     "zod": "^4.1.11"
   },
   "devDependencies": {

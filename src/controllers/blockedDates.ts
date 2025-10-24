@@ -6,12 +6,10 @@ import { ObjectId } from 'mongodb';
 // Get all blocked dates
 export const getAllBlockedDates = async (req: Request, res: Response) => {
   try {
-    const blockedDates = (await collections.blockedDates?.find({}).toArray()) as unknown as BlockedDate[];
-    
-    console.log('=== GET ALL BLOCKED DATES DEBUG ===');
-    console.log('Total blocked dates found:', blockedDates.length);
-    console.log('Blocked dates:', blockedDates.map(bd => ({ date: bd.date, reason: bd.reason })));
-    
+    if (!collections.blockedDates) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    const blockedDates = (await collections.blockedDates.find({}).toArray()) as unknown as BlockedDate[];
     res.status(200).json(blockedDates);
   } catch (error) {
     console.error('Error fetching blocked dates:', error);
@@ -94,25 +92,12 @@ export const getBlockedDatesInRange = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
     }
     
-    console.log('=== GET BLOCKED DATES IN RANGE DEBUG ===');
-    console.log('Requested range:', { start, end });
-    
     const blockedDates = (await collections.blockedDates?.find({
       date: {
         $gte: start,
         $lte: end
       }
     }).toArray()) as unknown as BlockedDate[];
-    
-    console.log('Blocked dates in range:', blockedDates.length);
-    console.log('Blocked dates details:', blockedDates.map(bd => ({ date: bd.date, reason: bd.reason })));
-    
-    // Check specifically for Friday Oct 24, 2025
-    const fridayOct24 = blockedDates.find(bd => bd.date === '2025-10-24');
-    console.log('Friday Oct 24, 2025 blocked?', fridayOct24 ? 'YES' : 'NO');
-    if (fridayOct24) {
-      console.log('Friday Oct 24 details:', fridayOct24);
-    }
     
     res.status(200).json(blockedDates);
   } catch (error) {
@@ -261,6 +246,203 @@ export const deleteBlockedDateByDate = async (req: Request, res: Response) => {
   } catch (error) {
     console.error(`Error deleting blocked date for ${date}:`, error);
     res.status(500).json({ error: 'Failed to delete blocked date' });
+  }
+};
+
+// PERMANENT SOLUTION: Bulk operations for blocked dates management
+
+// Clear ALL blocked dates (permanent fix for sync issues)
+export const clearAllBlockedDates = async (req: Request, res: Response) => {
+  try {
+    console.log('=== CLEARING ALL BLOCKED DATES ===');
+    
+    const result = await collections.blockedDates?.deleteMany({});
+    
+    console.log(`Deleted ${result?.deletedCount || 0} blocked dates`);
+    
+    res.status(200).json({
+      message: 'All blocked dates cleared successfully',
+      deletedCount: result?.deletedCount || 0,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error clearing all blocked dates:', error);
+    res.status(500).json({ error: 'Failed to clear all blocked dates' });
+  }
+};
+
+// Block multiple dates at once
+export const blockMultipleDates = async (req: Request, res: Response) => {
+  try {
+    const { dates, reason = 'Day blocked off', recurringPattern = 'none' } = req.body;
+    
+    if (!Array.isArray(dates) || dates.length === 0) {
+      return res.status(400).json({ error: 'Dates array is required and must not be empty' });
+    }
+    
+    // Validate all dates
+    for (const date of dates) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ error: `Invalid date format: ${date}. Use YYYY-MM-DD` });
+      }
+    }
+    
+    console.log('=== BLOCKING MULTIPLE DATES ===');
+    console.log('Dates to block:', dates);
+    
+    const blockedDates: BlockedDate[] = dates.map(date => ({
+      date,
+      reason,
+      recurringPattern,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }));
+    
+    const result = await collections.blockedDates?.insertMany(blockedDates, { ordered: false });
+    
+    console.log(`Successfully blocked ${result?.insertedCount || 0} dates`);
+    
+    res.status(201).json({
+      message: 'Multiple dates blocked successfully',
+      insertedCount: result?.insertedCount || 0,
+      blockedDates: dates,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error blocking multiple dates:', error);
+    res.status(500).json({ error: 'Failed to block multiple dates' });
+  }
+};
+
+// Get blocked dates summary (for frontend sync)
+export const getBlockedDatesSummary = async (req: Request, res: Response) => {
+  try {
+    const { start, end } = req.query;
+    
+    let query = {};
+    if (start && end) {
+      // Validate date formats
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(start as string) || !/^\d{4}-\d{2}-\d{2}$/.test(end as string)) {
+        return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
+      }
+      
+      query = {
+        date: {
+          $gte: start,
+          $lte: end
+        }
+      };
+    }
+    
+    const blockedDates = (await collections.blockedDates?.find(query).toArray()) as unknown as BlockedDate[];
+    
+    const summary = {
+      totalBlockedDates: blockedDates.length,
+      blockedDates: blockedDates.map(bd => ({ date: bd.date, reason: bd.reason })),
+      dateRange: start && end ? { start, end } : 'all',
+      lastUpdated: new Date().toISOString(),
+      syncStatus: 'current'
+    };
+    
+    console.log('=== BLOCKED DATES SUMMARY ===');
+    console.log('Summary:', JSON.stringify(summary, null, 2));
+    
+    res.status(200).json(summary);
+  } catch (error) {
+    console.error('Error getting blocked dates summary:', error);
+    res.status(500).json({ error: 'Failed to get blocked dates summary' });
+  }
+};
+
+// Validate blocked dates consistency
+export const validateBlockedDatesConsistency = async (req: Request, res: Response) => {
+  try {
+    const { start, end } = req.query;
+    
+    console.log('=== VALIDATING BLOCKED DATES CONSISTENCY ===');
+    
+    // Get all blocked dates
+    const allBlockedDates = (await collections.blockedDates?.find({}).toArray()) as unknown as BlockedDate[];
+    
+    // Get blocked dates in range if specified
+    let rangeBlockedDates: BlockedDate[] = [];
+    if (start && end) {
+      rangeBlockedDates = (await collections.blockedDates?.find({
+        date: {
+          $gte: start,
+          $lte: end
+        }
+      }).toArray()) as unknown as BlockedDate[];
+    }
+    
+    // Check for duplicates
+    const dateSet = new Set();
+    const duplicates: string[] = [];
+    allBlockedDates.forEach(bd => {
+      if (dateSet.has(bd.date)) {
+        duplicates.push(bd.date);
+      } else {
+        dateSet.add(bd.date);
+      }
+    });
+    
+    const validation = {
+      isValid: duplicates.length === 0,
+      totalBlockedDates: allBlockedDates.length,
+      rangeBlockedDates: rangeBlockedDates.length,
+      duplicates: duplicates,
+      issues: duplicates.length > 0 ? [`Found ${duplicates.length} duplicate dates`] : [],
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('Validation result:', JSON.stringify(validation, null, 2));
+    
+    res.status(200).json(validation);
+  } catch (error) {
+    console.error('Error validating blocked dates consistency:', error);
+    res.status(500).json({ error: 'Failed to validate blocked dates consistency' });
+  }
+};
+
+// Admin endpoint to force sync blocked dates
+export const forceSyncBlockedDates = async (req: Request, res: Response) => {
+  try {
+    console.log('=== FORCING BLOCKED DATES SYNC ===');
+    
+    // Get current state
+    const allBlockedDates = (await collections.blockedDates?.find({}).toArray()) as unknown as BlockedDate[];
+    
+    // Remove duplicates
+    const uniqueDates = new Map();
+    allBlockedDates.forEach(bd => {
+      if (!uniqueDates.has(bd.date)) {
+        uniqueDates.set(bd.date, bd);
+      }
+    });
+    
+    const uniqueBlockedDates = Array.from(uniqueDates.values());
+    
+    // Clear all and re-insert unique ones
+    await collections.blockedDates?.deleteMany({});
+    
+    if (uniqueBlockedDates.length > 0) {
+      await collections.blockedDates?.insertMany(uniqueBlockedDates);
+    }
+    
+    const syncResult = {
+      message: 'Blocked dates sync completed successfully',
+      originalCount: allBlockedDates.length,
+      uniqueCount: uniqueBlockedDates.length,
+      duplicatesRemoved: allBlockedDates.length - uniqueBlockedDates.length,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('Sync result:', JSON.stringify(syncResult, null, 2));
+    
+    res.status(200).json(syncResult);
+  } catch (error) {
+    console.error('Error forcing blocked dates sync:', error);
+    res.status(500).json({ error: 'Failed to force sync blocked dates' });
   }
 };
 

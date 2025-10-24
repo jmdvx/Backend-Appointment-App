@@ -1,0 +1,109 @@
+@endpoint =http://localhost:3000/api/v1/email
+
+### Test email service connection
+GET {{endpoint}}/test HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+### Send welcome email to specific user
+POST {{endpoint}}/welcome/USER_ID_HERE HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+### Send appointment confirmation email
+POST {{endpoint}}/appointment-confirmation/USER_ID_HERE/APPOINTMENT_ID_HERE HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+### Send custom email
+POST {{endpoint}}/custom HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+{
+  "to": "test@example.com",
+  "subject": "Test Email",
+  "html": "<h1>Test Email</h1><p>This is a test email from Katie's Appointment Booking System.</p>",
+  "text": "Test Email\n\nThis is a test email from Katie's Appointment Booking System."
+}
+
+### Send bulk email to all users
+POST {{endpoint}}/bulk HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+{
+  "subject": "Important Announcement",
+  "html": "<h1>Important Announcement</h1><p>This is an important message for all users.</p>",
+  "text": "Important Announcement\n\nThis is an important message for all users."
+}
+
+### Send login notification email
+POST {{endpoint}}/login-notification HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+{
+  "userId": "USER_ID_HERE",
+  "ipAddress": "192.168.1.100"
+}
+
+### Send password reset email
+POST {{endpoint}}/password-reset HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+{
+  "email": "user@example.com"
+}
+
+### Send profile update notification email
+POST {{endpoint}}/profile-update HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+{
+  "userId": "USER_ID_HERE",
+  "changes": [
+    "Name changed from 'John Doe' to 'John Smith'",
+    "Phone number updated",
+    "Date of birth updated"
+  ]
+}
+
+### Request password reset (Public endpoint)
+POST http://localhost:3000/api/auth/forgot-password HTTP/1.1
+content-type: application/json
+
+{
+  "email": "user@example.com"
+}
+
+### Reset password with token (Public endpoint)
+POST http://localhost:3000/api/auth/reset-password HTTP/1.1
+content-type: application/json
+
+{
+  "token": "RESET_TOKEN_HERE",
+  "newPassword": "newpassword123"
+}
+
+### Send account deletion notification email
+POST {{endpoint}}/account-deletion HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+{
+  "userId": "USER_ID_HERE"
+}
+
+### Send appointment rescheduled notification email
+POST {{endpoint}}/appointment-rescheduled HTTP/1.1
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+content-type: application/json
+
+{
+  "userId": "USER_ID_HERE",
+  "oldAppointmentId": "OLD_APPOINTMENT_ID_HERE",
+  "newAppointmentId": "NEW_APPOINTMENT_ID_HERE"
+}
