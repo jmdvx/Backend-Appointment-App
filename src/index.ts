@@ -94,9 +94,21 @@ app.use('/api/v1/email', emailRoutes)
 // Auth routes for frontend compatibility
 app.use('/api/auth', authRoutes)
 
-app.get("/bananas", async (_req: Request, res: Response) => {
+// Root route - API information
+app.get("/", async (_req: Request, res: Response) => {
     res.json({
-        message: "hello this is bananas",
+        message: "Appointment App Backend API",
+        version: "1.0.0",
+        status: "Running",
+        endpoints: {
+            health: "/ping",
+            apiHealth: "/health",
+            appointments: "/api/v1/appointments",
+            blockedDates: "/api/v1/blocked-dates",
+            users: "/api/v1/users",
+            auth: "/api/auth"
+        },
+        documentation: "See README.md for full API documentation"
     });
 });
 
