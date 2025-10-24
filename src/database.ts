@@ -18,9 +18,7 @@ const client = new MongoClient(connectionString, {
     // Fix TLS compatibility issues with Render/Node.js 25
     tls: true,
     tlsAllowInvalidCertificates: false,
-    tlsAllowInvalidHostnames: false,
-    // Force TLS 1.2 for compatibility
-    tlsInsecure: false
+    tlsAllowInvalidHostnames: false
 });
 
 export const collections: { users?: Collection, appointments?: Collection, blockedDates?: Collection } = {}
