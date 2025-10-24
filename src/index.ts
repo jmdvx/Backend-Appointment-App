@@ -16,7 +16,11 @@ import { authenticateKey } from "./middleware/auth.middleware";
 
 export const app: Application = express();
 
-initDb()
+// Initialize database with error handling
+initDb().catch((error) => {
+    console.error('❌ Failed to initialize database:', error);
+    console.log('⚠️  Server will continue running but database operations may fail');
+});
 
 // Configure CORS to allow requests from frontend
 const corsOptions = {
