@@ -31,6 +31,11 @@ export async function initDb(): Promise<void> {
     const maxRetries = 3;
     let retryCount = 0;
 
+    console.log('🔍 Database connection details:');
+    console.log('  - Connection string exists:', !!connectionString);
+    console.log('  - Database name:', dbName);
+    console.log('  - Environment:', process.env.NODE_ENV || 'not set');
+
     while (retryCount < maxRetries) {
         try {
             console.log(`🔄 Attempting database connection (attempt ${retryCount + 1}/${maxRetries})...`);
@@ -49,11 +54,16 @@ export async function initDb(): Promise<void> {
             collections.blockedDates = blockedDatesCollection;
 
             console.log('✅ Connected to database successfully');
+            console.log('📊 Collections initialized:', {
+                users: !!collections.users,
+                appointments: !!collections.appointments,
+                blockedDates: !!collections.blockedDates
+            });
             return; // Success, exit the function
 
         } catch (error) {
             retryCount++;
-            
+
             if (error instanceof Error) {
                 console.log(`❌ Database connection failed (attempt ${retryCount}/${maxRetries}): ${error.message}`);
                 if (retryCount === maxRetries) {
@@ -62,7 +72,7 @@ export async function initDb(): Promise<void> {
             } else {
                 console.log(`❌ Database connection failed (attempt ${retryCount}/${maxRetries}): ${error}`);
             }
-            
+
             if (retryCount < maxRetries) {
                 console.log(`⏳ Retrying in 5 seconds...`);
                 await new Promise(resolve => setTimeout(resolve, 5000));
@@ -71,7 +81,10 @@ export async function initDb(): Promise<void> {
                 collections.users = undefined;
                 collections.appointments = undefined;
                 collections.blockedDates = undefined;
-                
+
+                console.log('💥 All database connection attempts failed');
+                console.log('⚠️  Server will continue but database operations will fail');
+
                 // Re-throw the error so the application can handle it appropriately
                 throw error;
             }

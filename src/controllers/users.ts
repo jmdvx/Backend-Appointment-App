@@ -76,15 +76,28 @@ export const getUsers = async (req: Request, res: Response) => {
 
   try {
     if (!collections.users) {
-      return res.status(500).json({ error: 'Database not connected' });
+      console.error('❌ Database collections not initialized - users collection is undefined');
+      console.log('🔍 Collections status:', {
+        users: !!collections.users,
+        appointments: !!collections.appointments,
+        blockedDates: !!collections.blockedDates
+      });
+      return res.status(500).json({ 
+        error: 'Database not connected',
+        details: 'Collections not initialized - check database connection'
+      });
     }
     const users = await collections.users.find(filterObj).toArray();
     res.json(users);
   } catch (error) {
     if (error instanceof Error) {
-      console.error(`Issue with GET ${error.message}`)
+      console.error(`Issue with GET users: ${error.message}`);
+      console.error('Stack trace:', error.stack);
     }
-    res.status(500).json({ 'error': 'get failed' });
+    res.status(500).json({ 
+      error: 'get failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 

@@ -20,6 +20,10 @@ export const app: Application = express();
 initDb().catch((error) => {
     console.error('❌ Failed to initialize database:', error);
     console.log('⚠️  Server will continue running but database operations may fail');
+    console.log('🔍 Environment check:');
+    console.log('  - DB_CONN_STRING exists:', !!process.env.DB_CONN_STRING);
+    console.log('  - DB_NAME:', process.env.DB_NAME || 'default');
+    console.log('  - NODE_ENV:', process.env.NODE_ENV || 'not set');
 });
 
 // AGGRESSIVE CORS CONFIGURATION - This will definitely work
