@@ -31,7 +31,7 @@ initDb().catch((error) => {
 app.use(compression({
     level: 6, // Compression level (1-9, 6 is good balance)
     threshold: 1024, // Only compress responses > 1KB
-    filter: (req, res) => {
+    filter: (req: Request, res: Response) => {
         // Don't compress if client doesn't support it
         if (req.headers['x-no-compression']) {
             return false;
