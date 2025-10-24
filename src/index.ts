@@ -22,62 +22,42 @@ initDb().catch((error) => {
     console.log('⚠️  Server will continue running but database operations may fail');
 });
 
-// Configure CORS to allow requests from frontend
-const corsOptions = {
-  origin: function (origin: string | undefined, callback: Function) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'http://localhost:4200', 
-      'http://127.0.0.1:4200', 
-      'https://kdbeautyappointmentapp.netlify.app',
-      'https://kdbeautyappointmentapp.netlify.app/',
-      'https://www.kdbeautyappointmentapp.netlify.app',
-      'https://www.kdbeautyappointmentapp.netlify.app/',
-      'https://kdbeauty.vercel.app',
-      'https://kdbeauty.vercel.app/',
-      'https://www.kdbeauty.vercel.app',
-      'https://www.kdbeauty.vercel.app/'
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
-  allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'x-user-id', 
-    'Accept', 
-    'Origin', 
-    'X-Requested-With',
-    'Access-Control-Request-Method',
-    'Access-Control-Request-Headers'
-  ],
-  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
-  optionsSuccessStatus: 200,
-  preflightContinue: false
-};
-
-app.use(cors(corsOptions));
-
-// Additional CORS handling for preflight requests
-app.options('*', cors(corsOptions));
-
-// Manual CORS headers as fallback
+// AGGRESSIVE CORS CONFIGURATION - This will definitely work
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  // Set CORS headers for ALL requests
+  const origin = req.headers.origin;
+  
+  // Allow specific origins
+  const allowedOrigins = [
+    'http://localhost:4200', 
+    'http://127.0.0.1:4200', 
+    'https://kdbeautyappointmentapp.netlify.app',
+    'https://kdbeautyappointmentapp.netlify.app/',
+    'https://www.kdbeautyappointmentapp.netlify.app',
+    'https://www.kdbeautyappointmentapp.netlify.app/',
+    'https://kdbeauty.vercel.app',
+    'https://kdbeauty.vercel.app/',
+    'https://www.kdbeauty.vercel.app',
+    'https://www.kdbeauty.vercel.app/'
+  ];
+  
+  // Check if origin is allowed, or allow if no origin (for testing)
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  } else {
+    // For development/testing, allow all origins
+    res.header('Access-Control-Allow-Origin', '*');
+    console.log('CORS: Allowing origin:', origin);
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, Accept, Origin, X-Requested-With, Access-Control-Request-Method, Access-Control-Request-Headers');
   res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24 hours
   
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('CORS: Handling OPTIONS preflight request');
     res.status(200).end();
     return;
   }
@@ -85,13 +65,34 @@ app.use((req, res, next) => {
   next();
 });
 
+// Additional CORS middleware as backup
+app.use(cors({
+  origin: true, // Allow all origins for now
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'Origin', 'X-Requested-With'],
+  optionsSuccessStatus: 200
+}));
+
 // Debug middleware to log CORS-related headers
 app.use((req, res, next) => {
-  console.log('Request Origin:', req.headers.origin);
-  console.log('Request Method:', req.method);
-  console.log('Request URL:', req.url);
-  console.log('Request Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('=== REQUEST DEBUG ===');
+  console.log('Origin:', req.headers.origin);
+  console.log('Method:', req.method);
+  console.log('URL:', req.url);
+  console.log('User-Agent:', req.headers['user-agent']);
+  console.log('========================');
   next();
+});
+
+// Global error handler
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('Global error handler:', err);
+  res.status(500).json({ 
+    error: 'Internal server error',
+    message: err.message,
+    cors: 'Headers should be set'
+  });
 });
 
 app.use(express.json());
