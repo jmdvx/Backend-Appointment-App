@@ -32,7 +32,9 @@ const corsOptions = {
       'http://localhost:4200', 
       'http://127.0.0.1:4200', 
       'https://kdbeautyappointmentapp.netlify.app',
-      'https://kdbeautyappointmentapp.netlify.app/'
+      'https://kdbeautyappointmentapp.netlify.app/',
+      'https://www.kdbeautyappointmentapp.netlify.app',
+      'https://www.kdbeautyappointmentapp.netlify.app/'
     ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -43,8 +45,18 @@ const corsOptions = {
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'Origin', 'X-Requested-With'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'x-user-id', 
+    'Accept', 
+    'Origin', 
+    'X-Requested-With',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
+  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
   optionsSuccessStatus: 200,
   preflightContinue: false
 };
@@ -54,23 +66,52 @@ app.use(cors(corsOptions));
 // Additional CORS handling for preflight requests
 app.options('*', cors(corsOptions));
 
+// Manual CORS headers as fallback
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, Accept, Origin, X-Requested-With, Access-Control-Request-Method, Access-Control-Request-Headers');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
+
 // Debug middleware to log CORS-related headers
 app.use((req, res, next) => {
   console.log('Request Origin:', req.headers.origin);
   console.log('Request Method:', req.method);
-  console.log('Request Headers:', req.headers);
+  console.log('Request URL:', req.url);
+  console.log('Request Headers:', JSON.stringify(req.headers, null, 2));
   next();
 });
 
 app.use(express.json());
 
 
-// Health check endpoint for monitoring
+// Simple health check endpoint for monitoring (no database required)
 app.get("/ping", async (_req: Request, res: Response) => {
     res.json({
         message: "Appointment App Backend is running",
         status: "OK",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        cors: "Enabled",
+        version: "1.0.0"
+    });
+});
+
+// Simple status endpoint
+app.get("/status", async (_req: Request, res: Response) => {
+    res.json({
+        status: "OK",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        cors: "Configured"
     });
 });
 
