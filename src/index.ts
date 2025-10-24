@@ -23,11 +23,13 @@ app.use(cors({
   origin: [
     'http://localhost:4200', 
     'http://127.0.0.1:4200', 
-    'https://kdbeautyappointmentapp.netlify.app' // Netlify production frontend
+    'https://kdbeautyappointmentapp.netlify.app', // Netlify production frontend
+    'https://kdbeautyappointmentapp.netlify.app/' // Netlify with trailing slash
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'] // Add x-user-id header
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'Origin', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // For legacy browser support
 }));
 
 app.use(express.json());
@@ -52,13 +54,47 @@ app.get("/health", async (_req: Request, res: Response) => {
             status: "OK",
             timestamp: new Date().toISOString(),
             database: dbStatus,
-            version: "1.0.0"
+            version: "1.0.0",
+            environment: process.env.NODE_ENV || "development"
         });
     } catch (error) {
         res.status(503).json({
             status: "ERROR",
             timestamp: new Date().toISOString(),
-            error: "Database connection failed"
+            error: "Database connection failed",
+            details: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+});
+
+// Database test endpoint for debugging
+app.get("/test-db", async (_req: Request, res: Response) => {
+    try {
+        const { collections } = await import('./database');
+        
+        if (!collections.users) {
+            return res.status(500).json({
+                error: "Database not connected",
+                message: "Users collection is not available"
+            });
+        }
+        
+        // Try to count users
+        const userCount = await collections.users.countDocuments();
+        
+        res.json({
+            status: "Database connected",
+            userCount: userCount,
+            collections: {
+                users: !!collections.users,
+                appointments: !!collections.appointments,
+                blockedDates: !!collections.blockedDates
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            error: "Database test failed",
+            message: error instanceof Error ? error.message : "Unknown error"
         });
     }
 });
