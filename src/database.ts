@@ -6,15 +6,22 @@ dotenv.config();
 const connectionString: string = process.env.DB_CONN_STRING || "";
 const dbName: string = process.env.DB_NAME || "appointmentAppDB";
 
-// Configure MongoDB client with SSL/TLS settings for Atlas compatibility
+// Configure MongoDB client with optimized settings for production
 const client = new MongoClient(connectionString, {
-    serverSelectionTimeoutMS: 30000, // Keep trying to send operations for 30 seconds
-    socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-    connectTimeoutMS: 30000, // Give up initial connection after 30 seconds
-    maxPoolSize: 10, // Maintain up to 10 socket connections
-    minPoolSize: 2, // Maintain a couple of socket connections
-    retryWrites: true, // Retry writes on network errors
-    retryReads: true // Retry reads on network errors
+    serverSelectionTimeoutMS: 10000, // Reduced from 30s for faster failover
+    socketTimeoutMS: 30000, // Reduced from 45s
+    connectTimeoutMS: 10000, // Reduced from 30s for faster startup
+    maxPoolSize: 20, // Increased for better concurrency
+    minPoolSize: 5, // Increased for better performance
+    retryWrites: true,
+    retryReads: true,
+    // Performance optimizations
+    maxIdleTimeMS: 30000, // Close idle connections after 30s
+    waitQueueTimeoutMS: 5000, // Wait max 5s for connection from pool
+    heartbeatFrequencyMS: 10000, // Check connection health every 10s
+    // Compression for better network performance
+    compressors: ['zlib'],
+    zlibCompressionLevel: 6
 });
 
 export const collections: { users?: Collection, appointments?: Collection, blockedDates?: Collection } = {}
@@ -52,6 +59,19 @@ export async function initDb(): Promise<void> {
             collections.appointments = appointmentsCollection;
             const blockedDatesCollection: Collection = db.collection('blocked_dates')
             collections.blockedDates = blockedDatesCollection;
+
+            // Create indexes for better query performance
+            try {
+                await usersCollection.createIndex({ email: 1 }, { unique: true });
+                await usersCollection.createIndex({ role: 1 });
+                await appointmentsCollection.createIndex({ userId: 1 });
+                await appointmentsCollection.createIndex({ date: 1 });
+                await appointmentsCollection.createIndex({ status: 1 });
+                await blockedDatesCollection.createIndex({ date: 1 }, { unique: true });
+                console.log('📈 Database indexes created for better performance');
+            } catch (indexError) {
+                console.log('⚠️  Some indexes may already exist:', indexError);
+            }
 
             console.log('✅ Connected to database successfully');
             console.log('📊 Collections initialized:', {

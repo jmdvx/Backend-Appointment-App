@@ -1,6 +1,7 @@
 import express, { Application, Request, Response } from "express";
 import morgan from "morgan";
 import cors from "cors";
+import compression from "compression";
 import userRoutes from './routes/users';
 import appointmentRoutes from './routes/appointments';
 import blockedDatesRoutes from './routes/blockedDates';
@@ -25,6 +26,19 @@ initDb().catch((error) => {
     console.log('  - DB_NAME:', process.env.DB_NAME || 'default');
     console.log('  - NODE_ENV:', process.env.NODE_ENV || 'not set');
 });
+
+// Enable compression for better performance
+app.use(compression({
+    level: 6, // Compression level (1-9, 6 is good balance)
+    threshold: 1024, // Only compress responses > 1KB
+    filter: (req, res) => {
+        // Don't compress if client doesn't support it
+        if (req.headers['x-no-compression']) {
+            return false;
+        }
+        return compression.filter(req, res);
+    }
+}));
 
 // AGGRESSIVE CORS CONFIGURATION - This will definitely work
 app.use((req, res, next) => {
@@ -99,7 +113,21 @@ app.use((err: any, req: any, res: any, next: any) => {
   });
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increase JSON payload limit
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Add caching headers for static responses
+app.use((req, res, next) => {
+    // Cache health check responses for 30 seconds
+    if (req.path === '/ping' || req.path === '/health') {
+        res.set('Cache-Control', 'public, max-age=30');
+    }
+    // Cache API responses for 5 seconds
+    else if (req.path.startsWith('/api/')) {
+        res.set('Cache-Control', 'private, max-age=5');
+    }
+    next();
+});
 
 
 // Simple health check endpoint for monitoring (no database required)
