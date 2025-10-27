@@ -23,6 +23,11 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
     
+    // Check if user is banned
+    if (user.isBanned) {
+      return res.status(403).json({ error: "Your account has been banned and you cannot access the system" });
+    }
+    
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
@@ -521,28 +526,57 @@ export const updateClient = async (req: Request, res: Response) => {
 };
 
 export const deleteClient = async (req: Request, res: Response) => {
-  let id: string = req.params.id;
+  const id: string = req.params.id;
+  
+  console.log('=== DELETE CLIENT DEBUG ===');
+  console.log('Client ID to delete:', id);
+  
+  // Validate ObjectId format
+  if (!ObjectId.isValid(id)) {
+    console.error('Invalid ObjectId format:', id);
+    return res.status(400).json({ error: 'Invalid client ID format' });
+  }
+  
   try {
+    if (!collections.users) {
+      console.error('Database not connected');
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    
     const query = { _id: new ObjectId(id) };
+    console.log('Query:', query);
 
-    const result = await collections.users?.deleteOne(query);
+    const result = await collections.users.deleteOne(query);
+    console.log('Delete result:', result);
 
-    if (result && result.deletedCount) {
-      res.status(204).json({ message: `Successfully removed client with id ${id}` });
-    } else if (!result) {
-      res.status(400).json({ message: `Failed to remove client with id ${id}` });
-    } else if (result.deletedCount == 0) {
-      res.status(404).json({ message: `no client found with id ${id}` });
+    if (result && result.deletedCount > 0) {
+      console.log('✅ Client deleted successfully');
+      return res.status(200).json({ 
+        message: `Successfully removed client with id ${id}`,
+        deletedCount: result.deletedCount
+      });
+    } else if (result.deletedCount === 0) {
+      console.log('❌ No client found with id:', id);
+      return res.status(404).json({ error: `No client found with id ${id}` });
+    } else {
+      console.log('❌ Delete operation failed');
+      return res.status(500).json({ error: 'Failed to delete client' });
     }
   } catch (error) {
+    console.error('❌ Error deleting client:', error);
+    
     if (error instanceof Error) {
-      console.log(`issue with deleting client ${error.message}`);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
+      // Provide more specific error messages
+      if (error.message.includes('ObjectId')) {
+        return res.status(400).json({ error: 'Invalid client ID format', details: error.message });
+      }
+      return res.status(500).json({ error: 'Failed to delete client', details: error.message });
     }
-    else {
-      console.log(`error with ${error}`)
-    }
-
-    res.status(400).send(`Unable to delete client`);
+    
+    return res.status(500).json({ error: 'Failed to delete client' });
   }
 };
 

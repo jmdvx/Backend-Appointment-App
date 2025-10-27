@@ -18,6 +18,8 @@ export interface Appointment {
   date: Date; 
   location: string;
   attendees: Attendee[];
+  cancelled?: boolean; // Flag to mark cancelled appointments
+  cancellationReason?: string; // Reason for cancellation
 }
 
 

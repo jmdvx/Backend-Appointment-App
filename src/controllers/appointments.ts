@@ -159,6 +159,12 @@ export const createAppointment = async (req: Request, res: Response) => {
     if (!userId || userId === '000000000000000000000000' || userId === null) {
       console.log('No userId provided - creating walk-in appointment without user account');
       finalUserId = null; // Allow appointments without user accounts
+    } else if (ObjectId.isValid(finalUserId)) {
+      // Check if the user is banned before allowing appointment creation
+      const user = await collections.users?.findOne({ _id: new ObjectId(finalUserId) }) as unknown as User;
+      if (user && user.isBanned) {
+        return res.status(403).json({ error: "You cannot book appointments because your account has been banned" });
+      }
     }
     
     const newAppointment: Appointment = {

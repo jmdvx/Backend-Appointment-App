@@ -9,6 +9,43 @@ const router: Router = express.Router();
 router.use(authenticateUser);
 router.use(requireAdmin);
 
+// Helper function for ban/unban operations
+const toggleBanClient = async (userId: string, isBanned: boolean, cancelAppointments: boolean = false) => {
+  if (!collections.users) {
+    throw new Error('Database not connected');
+  }
+
+  const user = await collections.users.findOne({ _id: new ObjectId(userId) });
+  
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Update user's ban status
+  const result = await collections.users.updateOne(
+    { _id: new ObjectId(userId) },
+    { $set: { isBanned, lastUpdated: new Date() } }
+  );
+
+  if (cancelAppointments && isBanned && collections.appointments) {
+    // Cancel all upcoming appointments for this user
+    const now = new Date();
+    const updateResult = await collections.appointments.updateMany(
+      { 
+        userId: new ObjectId(userId),
+        date: { $gte: now } // Only future appointments
+      },
+      { $set: { cancelled: true, cancellationReason: 'User account banned' } }
+    );
+    console.log(`Cancelled ${updateResult.modifiedCount} future appointments for banned user`);
+  }
+
+  return {
+    modifiedCount: result.modifiedCount,
+    user: { ...user, isBanned }
+  };
+};
+
 // Admin-only: Get all users
 router.get('/users', async (req, res) => {
   try {
@@ -138,6 +175,49 @@ router.delete('/users/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting user:', error);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// Admin-only: Ban a client
+router.post('/ban-client/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cancelAppointments } = req.body; // Optional: cancel their appointments
+    
+    const result = await toggleBanClient(id, true, cancelAppointments === true);
+    
+    if (result.modifiedCount > 0) {
+      res.json({ 
+        message: 'Client banned successfully',
+        client: result.user
+      });
+    } else {
+      res.status(404).json({ error: 'User not found or already banned' });
+    }
+  } catch (error: any) {
+    console.error('Error banning client:', error);
+    res.status(500).json({ error: error.message || 'Failed to ban client' });
+  }
+});
+
+// Admin-only: Unban a client
+router.post('/unban-client/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await toggleBanClient(id, false);
+    
+    if (result.modifiedCount > 0) {
+      res.json({ 
+        message: 'Client unbanned successfully',
+        client: result.user
+      });
+    } else {
+      res.status(404).json({ error: 'User not found or already unbanned' });
+    }
+  } catch (error: any) {
+    console.error('Error unbanning client:', error);
+    res.status(500).json({ error: error.message || 'Failed to unban client' });
   }
 });
 
