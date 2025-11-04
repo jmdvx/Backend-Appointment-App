@@ -619,50 +619,71 @@ export const createClient = async (req: Request, res: Response) => {
 };
 
 export const updateClient = async (req: Request, res: Response) => {
-  const id: string = req.params.id;
-  const { name, email, phone, notes, preferences, isBanned, roles } = req.body;
-  
-  // Set default phone number if not provided
-  const phoneNumber = phone || "080000000";
-  
-  const newData: Partial<User> = {
-    name: name,
-    phonenumber: phoneNumber, // Map phone to phonenumber
-    email: email,
-    notes: notes,
-    isBanned: isBanned,
-    roles: roles, // Include roles in update
-    preferences: preferences,
-    lastUpdated: new Date()
-  }
-
   try {
-    const query = { _id: new ObjectId(id) };
-    const result = await collections.users?.updateOne(query, { $set: newData });
+    // Check database connection first
+    if (!collections.users) {
+      console.error('❌ Database not connected - users collection unavailable');
+      return res.status(500).json({ 
+        error: 'Database not connected',
+        message: 'Cannot update client - database connection failed'
+      });
+    }
 
-    if (result) {
-      if (result.modifiedCount > 0) {
-        res.status(200).json({ message: `Updated Client` })
-      }
-      else if (result.matchedCount == 1) {
-        res.status(400).json({ message: `Client found but no update` });
-      }
-      else {
-        res.status(404).json({ "Message": `${id} not found ` });
-      }
+    const id: string = req.params.id;
+    
+    // Validate ObjectId format
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        error: 'Invalid client ID',
+        message: `The provided client ID "${id}" is not a valid format`
+      });
     }
-    else {
-      res.status(400).send(`Unable to update client ${req.params.id}`);
+
+    const { name, email, phone, notes, preferences, isBanned, roles } = req.body;
+    
+    // Build update object with only provided fields (remove undefined)
+    const newData: Partial<User> = {
+      lastUpdated: new Date()
+    };
+
+    // Only include fields that are provided
+    if (name !== undefined) newData.name = name;
+    if (email !== undefined) newData.email = email;
+    if (phone !== undefined) newData.phonenumber = phone;
+    if (notes !== undefined) newData.notes = notes;
+    if (isBanned !== undefined) newData.isBanned = isBanned;
+    if (roles !== undefined) newData.roles = roles;
+    if (preferences !== undefined) newData.preferences = preferences;
+
+    const query = { _id: new ObjectId(id) };
+    const result = await collections.users.updateOne(query, { $set: newData });
+
+    if (result.modifiedCount > 0) {
+      return res.status(200).json({ message: 'Updated Client' });
+    } else if (result.matchedCount === 1) {
+      return res.status(200).json({ message: 'Client found but no changes were made' });
+    } else {
+      return res.status(404).json({ error: 'Client not found', message: `Client with ID ${id} not found` });
     }
-  }
-  catch (error) {
+  } catch (error) {
     if (error instanceof Error) {
-      console.log(`error with updating client ${error.message}`);
+      console.error(`Error updating client: ${error.message}`);
+      
+      // Check if it's an ObjectId error
+      if (error.message.includes('ObjectId') || error.message.includes('BSON')) {
+        return res.status(400).json({ 
+          error: 'Invalid client ID format',
+          message: error.message
+        });
+      }
+    } else {
+      console.error('Unknown error updating client:', error);
     }
-    else {
-      console.error(error);
-    }
-    res.status(400).send(`Unable to update client ${req.params.id}`);
+    
+    return res.status(500).json({ 
+      error: 'Failed to update client',
+      message: 'An internal server error occurred while updating the client'
+    });
   }
 };
 
