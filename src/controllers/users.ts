@@ -42,13 +42,35 @@ export const loginUser = async (req: Request, res: Response) => {
       });
     }
     
-    // Validate password hash format (bcrypt hashes start with $2a$, $2b$, or $2y$)
+    // CRITICAL: Validate password hash format (bcrypt hashes start with $2a$, $2b$, or $2y$)
     if (!user.password.startsWith('$2')) {
-      console.error(`❌ Login attempt failed - Invalid password hash format for: ${email}`);
-      console.error('Password hash does not appear to be a valid bcrypt hash');
+      console.error(`❌❌❌ SECURITY ALERT: Invalid password hash format for: ${email} ❌❌❌`);
+      console.error('❌ Password hash does not appear to be a valid bcrypt hash');
+      console.error('❌ Hash value (full):', user.password);
+      console.error('❌ Hash type:', typeof user.password);
+      console.error('❌ Hash length:', user.password?.length);
       return res.status(500).json({ 
         error: "Account configuration error",
-        message: "User account password is not properly configured"
+        message: "User account password is not properly configured. Please contact support."
+      });
+    }
+    
+    // CRITICAL: Verify hash is a proper bcrypt hash (should be 60 characters for bcrypt)
+    if (user.password.length < 50 || user.password.length > 60) {
+      console.error(`❌❌❌ SECURITY ALERT: Suspicious password hash length for: ${email} ❌❌❌`);
+      console.error(`❌ Hash length: ${user.password.length} (expected 60 for bcrypt)`);
+      return res.status(500).json({ 
+        error: "Account configuration error",
+        message: "User account password format is invalid. Please contact support."
+      });
+    }
+    
+    // CRITICAL: Ensure password hash is not empty or plain text
+    if (user.password === password) {
+      console.error(`❌❌❌ CRITICAL SECURITY BREACH: Password stored in plain text for: ${email} ❌❌❌`);
+      return res.status(500).json({ 
+        error: "Security error",
+        message: "Password security issue detected. Please contact support."
       });
     }
     
@@ -58,49 +80,90 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.status(403).json({ error: "Your account has been banned and you cannot access the system" });
     }
     
-    // Check password - CRITICAL: Must validate password before allowing login
-    console.log(`🔐 Attempting password verification for: ${email}`);
+    // CRITICAL SECURITY: Password validation - ABSOLUTE BLOCK ON FAILURE
+    console.log(`🔐 SECURITY CHECK: Attempting password verification for: ${email}`);
     console.log(`📝 Password provided: ${password ? 'YES (length: ' + password.length + ')' : 'NO'}`);
     console.log(`🔑 Password hash exists: ${user.password ? 'YES (starts with: ' + user.password.substring(0, 7) + '...)' : 'NO'}`);
+    console.log(`🔑 Password hash length: ${user.password?.length || 0}`);
     
-    let isPasswordValid = false;
+    // CRITICAL: Initialize as false - MUST be explicitly set to true
+    let isPasswordValid: boolean = false;
+    
     try {
-      // bcrypt.compare will throw an error if the hash is invalid
-      // IMPORTANT: bcrypt.compare returns false if password doesn't match, true if it does
-      // It only throws errors for invalid hash formats
-      isPasswordValid = await bcrypt.compare(password, user.password);
-      console.log(`🔍 Password comparison result: ${isPasswordValid}`);
+      // SECURITY: bcrypt.compare is the ONLY way to verify password
+      // It returns false if password doesn't match, true only if it matches exactly
+      const comparisonResult = await bcrypt.compare(password, user.password);
+      
+      // CRITICAL: Log the exact result
+      console.log(`🔍 BCRYPT COMPARISON RESULT: ${comparisonResult}`);
+      console.log(`🔍 Result type: ${typeof comparisonResult}`);
+      console.log(`🔍 Result === true: ${comparisonResult === true}`);
+      console.log(`🔍 Result !== false: ${comparisonResult !== false}`);
+      
+      // SECURITY: Only accept if result is EXPLICITLY true (boolean true)
+      if (comparisonResult === true && typeof comparisonResult === 'boolean') {
+        isPasswordValid = true;
+        console.log(`✅ Password comparison returned TRUE - password is valid`);
+      } else {
+        isPasswordValid = false;
+        console.log(`❌ Password comparison returned FALSE or non-boolean - password is INVALID`);
+        console.log(`❌ Comparison result value: ${comparisonResult}`);
+        console.log(`❌ Comparison result type: ${typeof comparisonResult}`);
+      }
     } catch (bcryptError) {
-      console.error(`❌ Password comparison error for ${email}:`, bcryptError);
-      console.error('Password hash in database might be invalid or corrupted');
-      console.error('Hash value:', user.password);
+      // CRITICAL: Any error in bcrypt comparison means authentication FAILS
+      console.error(`❌ CRITICAL: Password comparison ERROR for ${email}:`, bcryptError);
+      console.error('❌ Password hash in database might be invalid or corrupted');
+      console.error('❌ Hash value (first 20 chars):', user.password?.substring(0, 20));
+      isPasswordValid = false;
       return res.status(500).json({ 
         error: "Authentication error",
         message: "Password verification failed due to account configuration issue"
       });
     }
     
-    // CRITICAL SECURITY CHECK: Only allow login if password is EXACTLY valid
-    // This is the most important check - if password is wrong, REJECT login
+    // CRITICAL SECURITY CHECK #1: Must be explicitly true
     if (isPasswordValid !== true) {
-      console.log(`❌ LOGIN REJECTED - Invalid password for: ${email}`);
-      console.log(`❌ Password validation result was: ${isPasswordValid} (must be true)`);
+      console.log(`❌❌❌ LOGIN REJECTED - Invalid password for: ${email} ❌❌❌`);
+      console.log(`❌ Password validation result: ${isPasswordValid}`);
+      console.log(`❌ Password validation type: ${typeof isPasswordValid}`);
+      console.log(`❌ isPasswordValid !== true: ${isPasswordValid !== true}`);
       return res.status(401).json({ 
         error: "Invalid credentials",
         message: "Email or password is incorrect"
       });
     }
     
-    // Double-check: Ensure we have a true boolean value
-    if (typeof isPasswordValid !== 'boolean' || isPasswordValid !== true) {
-      console.error(`❌ CRITICAL SECURITY ERROR - Password validation returned unexpected value: ${isPasswordValid}`);
+    // CRITICAL SECURITY CHECK #2: Type must be boolean
+    if (typeof isPasswordValid !== 'boolean') {
+      console.error(`❌❌❌ CRITICAL SECURITY ERROR - Password validation is not boolean: ${typeof isPasswordValid} ❌❌❌`);
+      console.error(`❌ Value: ${isPasswordValid}`);
       return res.status(500).json({ 
         error: "Authentication error",
         message: "Password verification failed"
       });
     }
     
-    console.log(`✅ Login successful for: ${email} - Password verified correctly`);
+    // CRITICAL SECURITY CHECK #3: Must be exactly true
+    if (isPasswordValid !== true) {
+      console.error(`❌❌❌ CRITICAL SECURITY ERROR - Password validation is not true ❌❌❌`);
+      console.error(`❌ Value: ${isPasswordValid}`);
+      return res.status(401).json({ 
+        error: "Invalid credentials",
+        message: "Email or password is incorrect"
+      });
+    }
+    
+    // TRIPLE CHECK: Final verification before allowing login
+    if (!isPasswordValid || isPasswordValid !== true || typeof isPasswordValid !== 'boolean') {
+      console.error(`❌❌❌ FINAL SECURITY CHECK FAILED - BLOCKING LOGIN ❌❌❌`);
+      return res.status(401).json({ 
+        error: "Invalid credentials",
+        message: "Email or password is incorrect"
+      });
+    }
+    
+    console.log(`✅✅✅ LOGIN APPROVED - Password verified correctly for: ${email} ✅✅✅`);
     
     // Send login notification email
     try {
