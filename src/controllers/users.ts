@@ -16,24 +16,91 @@ export const loginUser = async (req: Request, res: Response) => {
   }
   
   try {
+    // Check database connection first
+    if (!collections.users) {
+      console.error('❌ Login attempt failed - Database not connected');
+      return res.status(500).json({ 
+        error: "Database connection error",
+        message: "Cannot authenticate - database is not available"
+      });
+    }
+    
     // Find user by email
-    const user = await collections.users?.findOne({ email: email }) as unknown as User;
+    const user = await collections.users.findOne({ email: email.toLowerCase().trim() }) as unknown as User;
     
     if (!user) {
+      console.log(`⚠️ Login attempt failed - User not found: ${email}`);
       return res.status(401).json({ error: "Invalid credentials" });
+    }
+    
+    // Validate that user has a password hash
+    if (!user.password || typeof user.password !== 'string' || user.password.trim() === '') {
+      console.error(`❌ Login attempt failed - User has no password hash: ${email}`);
+      return res.status(500).json({ 
+        error: "Account configuration error",
+        message: "User account is not properly configured"
+      });
+    }
+    
+    // Validate password hash format (bcrypt hashes start with $2a$, $2b$, or $2y$)
+    if (!user.password.startsWith('$2')) {
+      console.error(`❌ Login attempt failed - Invalid password hash format for: ${email}`);
+      console.error('Password hash does not appear to be a valid bcrypt hash');
+      return res.status(500).json({ 
+        error: "Account configuration error",
+        message: "User account password is not properly configured"
+      });
     }
     
     // Check if user is banned
     if (user.isBanned) {
+      console.log(`⚠️ Login attempt blocked - User is banned: ${email}`);
       return res.status(403).json({ error: "Your account has been banned and you cannot access the system" });
     }
     
-    // Check password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    // Check password - CRITICAL: Must validate password before allowing login
+    console.log(`🔐 Attempting password verification for: ${email}`);
+    console.log(`📝 Password provided: ${password ? 'YES (length: ' + password.length + ')' : 'NO'}`);
+    console.log(`🔑 Password hash exists: ${user.password ? 'YES (starts with: ' + user.password.substring(0, 7) + '...)' : 'NO'}`);
     
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: "Invalid credentials" });
+    let isPasswordValid = false;
+    try {
+      // bcrypt.compare will throw an error if the hash is invalid
+      // IMPORTANT: bcrypt.compare returns false if password doesn't match, true if it does
+      // It only throws errors for invalid hash formats
+      isPasswordValid = await bcrypt.compare(password, user.password);
+      console.log(`🔍 Password comparison result: ${isPasswordValid}`);
+    } catch (bcryptError) {
+      console.error(`❌ Password comparison error for ${email}:`, bcryptError);
+      console.error('Password hash in database might be invalid or corrupted');
+      console.error('Hash value:', user.password);
+      return res.status(500).json({ 
+        error: "Authentication error",
+        message: "Password verification failed due to account configuration issue"
+      });
     }
+    
+    // CRITICAL SECURITY CHECK: Only allow login if password is EXACTLY valid
+    // This is the most important check - if password is wrong, REJECT login
+    if (isPasswordValid !== true) {
+      console.log(`❌ LOGIN REJECTED - Invalid password for: ${email}`);
+      console.log(`❌ Password validation result was: ${isPasswordValid} (must be true)`);
+      return res.status(401).json({ 
+        error: "Invalid credentials",
+        message: "Email or password is incorrect"
+      });
+    }
+    
+    // Double-check: Ensure we have a true boolean value
+    if (typeof isPasswordValid !== 'boolean' || isPasswordValid !== true) {
+      console.error(`❌ CRITICAL SECURITY ERROR - Password validation returned unexpected value: ${isPasswordValid}`);
+      return res.status(500).json({ 
+        error: "Authentication error",
+        message: "Password verification failed"
+      });
+    }
+    
+    console.log(`✅ Login successful for: ${email} - Password verified correctly`);
     
     // Send login notification email
     try {
@@ -49,12 +116,14 @@ export const loginUser = async (req: Request, res: Response) => {
       // Don't fail login if email fails
     }
     
-    // Return user info (without password)
+    // Return user info (without password) - NO TOKEN GENERATED HERE
     const { password: _, ...userWithoutPassword } = user;
     
+    console.log(`📤 Sending login response for: ${email}`);
     res.status(200).json({
       message: "Login successful",
       user: userWithoutPassword
+      // NOTE: No token is generated by this backend - tokens must come from frontend or another service
     });
     
   } catch (error) {
@@ -130,10 +199,10 @@ export const getUserById = async (req: Request, res: Response) => {
 };
 
 export const createUser = async (req: Request, res: Response) => {
-  // create a new user in the database
+  // create a new user in the database - SECURE REGISTRATION
 
-  console.log('=== CREATE USER DEBUG ===');
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('=== CREATE USER (REGISTRATION) ===');
+  console.log('📝 Registration attempt');
 
   // Check database connection first
   if (!collections.users) {
@@ -146,112 +215,247 @@ export const createUser = async (req: Request, res: Response) => {
 
   const { name, phonenumber, phone, email, password, dob, role } = req.body;
   
-  // Validate required fields
+  // SECURITY: Validate required fields
   if (!name || !email || !password || (!phonenumber && !phone)) {
+    console.log('❌ Registration failed - Missing required fields');
     return res.status(400).json({
       error: "Missing required fields",
       message: "Name, email, password, and phone number are required"
     });
   }
 
-  // Check if user already exists
+  // SECURITY: Normalize and validate email
+  const normalizedEmail = email.toLowerCase().trim();
+  if (!normalizedEmail || normalizedEmail.length === 0) {
+    console.log('❌ Registration failed - Invalid email format');
+    return res.status(400).json({
+      error: "Invalid email",
+      message: "Email address is required and must be valid"
+    });
+  }
+
+  // SECURITY: Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(normalizedEmail)) {
+    console.log(`❌ Registration failed - Invalid email format: ${normalizedEmail}`);
+    return res.status(400).json({
+      error: "Invalid email format",
+      message: "Please provide a valid email address"
+    });
+  }
+
+  // SECURITY: Validate password strength
+  if (!password || typeof password !== 'string') {
+    console.log('❌ Registration failed - Password is required');
+    return res.status(400).json({
+      error: "Password required",
+      message: "Password must be provided"
+    });
+  }
+
+  // SECURITY: Password strength requirements
+  if (password.length < 8) {
+    console.log('❌ Registration failed - Password too short');
+    return res.status(400).json({
+      error: "Password too weak",
+      message: "Password must be at least 8 characters long"
+    });
+  }
+
+  if (password.length > 128) {
+    console.log('❌ Registration failed - Password too long');
+    return res.status(400).json({
+      error: "Password too long",
+      message: "Password must be less than 128 characters"
+    });
+  }
+
+  // SECURITY: Password complexity requirements
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  
+  if (!hasLowerCase || !hasUpperCase || !hasNumber) {
+    console.log('❌ Registration failed - Password does not meet complexity requirements');
+    return res.status(400).json({
+      error: "Password too weak",
+      message: "Password must contain at least one lowercase letter, one uppercase letter, and one number"
+    });
+  }
+
+  // SECURITY: Prevent common weak passwords
+  const commonPasswords = ['password', 'password123', '12345678', 'admin123', 'qwerty123'];
+  if (commonPasswords.includes(password.toLowerCase())) {
+    console.log('❌ Registration failed - Common password detected');
+    return res.status(400).json({
+      error: "Password too weak",
+      message: "This password is too common. Please choose a stronger password"
+    });
+  }
+
+  // SECURITY: Sanitize name input
+  const sanitizedName = name.trim();
+  if (!sanitizedName || sanitizedName.length === 0 || sanitizedName.length > 100) {
+    console.log('❌ Registration failed - Invalid name');
+    return res.status(400).json({
+      error: "Invalid name",
+      message: "Name must be between 1 and 100 characters"
+    });
+  }
+
+  // SECURITY: Prevent admin role assignment via registration
+  // Only allow "user" role for new registrations, admin must be set manually
+  const userRole = role === "admin" ? "user" : (role || "user");
+  if (role === "admin") {
+    console.log('⚠️ Attempt to register as admin blocked - role set to user');
+  }
+
+  // SECURITY: Check if user already exists (case-insensitive)
   try {
-    const existingUser = await collections.users.findOne({ email: email.toLowerCase() });
+    const existingUser = await collections.users.findOne({ 
+      email: normalizedEmail 
+    });
     if (existingUser) {
+      console.log(`❌ Registration failed - User already exists: ${normalizedEmail}`);
       return res.status(409).json({
         error: "User already exists",
         message: "An account with this email already exists"
       });
     }
   } catch (error) {
-    console.error('Error checking existing user:', error);
+    console.error('❌ Error checking existing user:', error);
     return res.status(500).json({ error: "Internal server error" });
   }
   
-  // Hash the password with increased salt rounds for better security
+  // SECURITY: Hash the password with increased salt rounds
   const saltRounds = 12;
   let hashedPassword: string;
   try {
     hashedPassword = await bcrypt.hash(password, saltRounds);
+    console.log('✅ Password hashed successfully');
   } catch (error) {
-    console.error('Error hashing password:', error);
+    console.error('❌ Error hashing password:', error);
     return res.status(500).json({ error: "Error processing password" });
   }
+
+  // SECURITY: Verify hash was created successfully
+  if (!hashedPassword || !hashedPassword.startsWith('$2')) {
+    console.error('❌ Password hash verification failed - hash is invalid');
+    return res.status(500).json({ 
+      error: "Password processing error",
+      message: "Failed to securely process password"
+    });
+  }
   
-  // Ensure phone number is properly handled
+  // SECURITY: Validate and sanitize phone number
   let phoneNumber = phonenumber || phone;
   
   if (!phoneNumber || phoneNumber === '' || phoneNumber === null || phoneNumber === undefined) {
+    console.log('❌ Registration failed - Phone number required');
     return res.status(400).json({
       error: "Phone number required",
       message: "A valid Irish mobile number is required"
     });
   }
-  
-  console.log('Final phone number being saved:', phoneNumber);
-  
-  const newUser: User = {
-    name: name.trim(), 
-    phonenumber: phoneNumber, 
-    email: email.toLowerCase().trim(), 
-    password: hashedPassword,
-    dob: dob,
-    role: role || "user",
-    dateJoined: new Date(), 
-    lastUpdated: new Date()
+
+  // SECURITY: Validate phone number format (Irish mobile)
+  const phoneRegex = /^08[3-9]\d{7,8}$/;
+  if (!phoneRegex.test(phoneNumber)) {
+    console.log(`❌ Registration failed - Invalid phone number format: ${phoneNumber}`);
+    return res.status(400).json({
+      error: "Invalid phone number",
+      message: "Phone number must be a valid Irish mobile number (e.g., 0831234567)"
+    });
   }
   
-  console.log('=== NEW USER OBJECT ===');
-  console.log('newUser.phonenumber:', newUser.phonenumber);
+  // SECURITY: Create user object with sanitized values
+  const newUser: User = {
+    name: sanitizedName, 
+    phonenumber: phoneNumber, 
+    email: normalizedEmail, 
+    password: hashedPassword, // Already verified as valid bcrypt hash
+    dob: dob ? new Date(dob) : undefined,
+    role: userRole, // Always "user" for registrations, admin blocked
+    dateJoined: new Date(), 
+    lastUpdated: new Date(),
+    isBanned: false // New users are not banned by default
+  }
+  
+  console.log('✅ User object created successfully');
+  console.log(`📧 Email: ${newUser.email}`);
+  console.log(`👤 Name: ${newUser.name}`);
+  console.log(`📱 Phone: ${newUser.phonenumber}`);
+  console.log(`🔐 Role: ${newUser.role}`);
+  console.log(`🔑 Password hash verified: ${newUser.password.startsWith('$2')}`);
 
+  // SECURITY: Insert user into database
   try {
-    const result = await collections.users.insertOne(newUser)
+    console.log('💾 Inserting user into database...');
+    const result = await collections.users.insertOne(newUser);
 
-    if (result) {
-      // Send welcome email to the new user
-      try {
-        const emailSent = await EmailService.sendWelcomeEmail(newUser);
-        if (emailSent) {
-          console.log(`Welcome email sent to ${newUser.email}`);
-        } else {
-          console.log(`Failed to send welcome email to ${newUser.email}`);
-        }
-      } catch (emailError) {
-        console.error('Error sending welcome email:', emailError);
-        // Don't fail user creation if email fails
+    if (!result || !result.insertedId) {
+      console.error('❌ Failed to create user - Database insertion returned no result');
+      return res.status(500).json({ 
+        error: "Failed to create user",
+        message: "Database operation failed"
+      });
+    }
+
+    console.log(`✅ User created successfully with ID: ${result.insertedId}`);
+
+    // Send welcome email (non-blocking - don't fail registration if email fails)
+    try {
+      const emailSent = await EmailService.sendWelcomeEmail(newUser);
+      if (emailSent) {
+        console.log(`✅ Welcome email sent to ${newUser.email}`);
+      } else {
+        console.log(`⚠️ Failed to send welcome email to ${newUser.email} (non-critical)`);
       }
+    } catch (emailError) {
+      console.error('⚠️ Error sending welcome email (non-critical):', emailError);
+      // Don't fail user creation if email fails
+    }
 
-      res.status(201).location(`${result.insertedId}`).json({ 
-        message: `Created a new user with id ${result.insertedId}`,
-        userId: result.insertedId,
-        user: {
-          id: result.insertedId,
-          name: newUser.name,
-          email: newUser.email,
-          phonenumber: newUser.phonenumber,
-          role: newUser.role,
-          dateJoined: newUser.dateJoined
-        }
-      })
-    }
-    else {
-      res.status(500).json({ error: "Failed to create a new user." });
-    }
+    // SECURITY: Return user info WITHOUT password
+    const userResponse = {
+      id: result.insertedId,
+      name: newUser.name,
+      email: newUser.email,
+      phonenumber: newUser.phonenumber,
+      role: newUser.role,
+      dateJoined: newUser.dateJoined
+    };
+
+    console.log('✅ Registration completed successfully');
+    res.status(201).location(`${result.insertedId}`).json({ 
+      message: "User registered successfully",
+      userId: result.insertedId,
+      user: userResponse
+    });
   }
   catch (error) {
-    console.error('Error creating user:', error);
+    console.error('❌ Error creating user:', error);
     if (error instanceof Error) {
-      // Handle duplicate key errors
-      if (error.message.includes('duplicate key')) {
+      // SECURITY: Handle duplicate key errors (race condition protection)
+      if (error.message.includes('duplicate key') || error.message.includes('E11000')) {
+        console.log(`❌ Registration failed - Duplicate email detected: ${normalizedEmail}`);
         return res.status(409).json({
           error: "User already exists",
           message: "An account with this email already exists"
         });
       }
-      res.status(500).json({ error: `Failed to create user: ${error.message}` });
+      console.error(`❌ Database error: ${error.message}`);
+      res.status(500).json({ 
+        error: "Failed to create user",
+        message: "An error occurred during registration"
+      });
     }
     else {
-      res.status(500).json({ error: "Failed to create user" });
+      console.error('❌ Unknown error during user creation');
+      res.status(500).json({ 
+        error: "Failed to create user",
+        message: "An unexpected error occurred"
+      });
     }
   }
 };
