@@ -16,6 +16,7 @@
     "kill-port": "npx kill-port 3000",
     "blocked-dates-admin": "ts-node blocked-dates-admin.ts",
     "reset-admin-password": "ts-node reset-admin-password.ts",
+    "reset-to-admin": "ts-node reset-to-single-admin.ts",
     "postinstall": "npm run build"
   },
   "nodemonConfig": {
