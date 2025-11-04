@@ -107,10 +107,14 @@ export const getAppointmentsByUserId = async (req: Request, res: Response) => {
   }
 
   try {
+    if (!collections.appointments) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    
     const query = { userId: new ObjectId(userId) };
     console.log('Querying with:', query);
     
-    const appointments = (await collections.appointments?.find(query).toArray()) as unknown as Appointment[];
+    const appointments = (await collections.appointments.find(query).toArray()) as unknown as Appointment[];
     console.log('Found appointments:', appointments.length);
     
     res.status(200).json(appointments);
@@ -129,8 +133,12 @@ export const getAppointmentById = async (req: Request, res: Response) => {
   }
 
   try {
+    if (!collections.appointments) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    
     const query = { _id: new ObjectId(id) };
-    const appointment = (await collections.appointments?.findOne(query)) as unknown as Appointment;
+    const appointment = (await collections.appointments.findOne(query)) as unknown as Appointment;
 
     if (appointment) {
       res.status(200).json(appointment);
@@ -146,6 +154,15 @@ export const getAppointmentById = async (req: Request, res: Response) => {
 // Create new appointment (supports walk-in bookings without user accounts)
 export const createAppointment = async (req: Request, res: Response) => {
   try {
+    // Check database connection first
+    if (!collections.appointments) {
+      console.error('❌ Database not connected - appointments collection unavailable');
+      return res.status(500).json({ 
+        error: 'Database not connected',
+        message: 'Cannot create appointment - database connection failed'
+      });
+    }
+    
     const { userId, title, description, date, location, attendees } = req.body;
     
     console.log('=== CREATE APPOINTMENT DEBUG ===');
@@ -161,7 +178,14 @@ export const createAppointment = async (req: Request, res: Response) => {
       finalUserId = null; // Allow appointments without user accounts
     } else if (ObjectId.isValid(finalUserId)) {
       // Check if the user is banned before allowing appointment creation
-      const user = await collections.users?.findOne({ _id: new ObjectId(finalUserId) }) as unknown as User;
+      if (!collections.users) {
+        console.error('❌ Database not connected - users collection unavailable');
+        return res.status(500).json({ 
+          error: 'Database not connected',
+          message: 'Cannot verify user - database connection failed'
+        });
+      }
+      const user = await collections.users.findOne({ _id: new ObjectId(finalUserId) }) as unknown as User;
       if (user && user.isBanned) {
         return res.status(403).json({ error: "You cannot book appointments because your account has been banned" });
       }
@@ -178,15 +202,15 @@ export const createAppointment = async (req: Request, res: Response) => {
 
     console.log('New appointment object:', newAppointment);
 
-    const result = await collections.appointments?.insertOne(newAppointment);
+    const result = await collections.appointments.insertOne(newAppointment);
 
     if (result) {
       console.log('Appointment created successfully with ID:', result.insertedId);
       
       // Send appointment confirmation email if user exists
-      if (finalUserId && ObjectId.isValid(finalUserId)) {
+      if (finalUserId && ObjectId.isValid(finalUserId) && collections.users) {
         try {
-          const user = await collections.users?.findOne({ _id: new ObjectId(finalUserId) }) as unknown as User;
+          const user = await collections.users.findOne({ _id: new ObjectId(finalUserId) }) as unknown as User;
           if (user) {
             const emailSent = await EmailService.sendAppointmentConfirmation(user, newAppointment);
             if (emailSent) {
@@ -224,6 +248,10 @@ export const updateAppointment = async (req: Request, res: Response) => {
   }
 
   try {
+    if (!collections.appointments) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    
     const { userId, title, description, date, location, attendees } = req.body;
     
     console.log('=== UPDATE APPOINTMENT DEBUG ===');
@@ -231,7 +259,7 @@ export const updateAppointment = async (req: Request, res: Response) => {
     console.log('Update data:', { userId, title, description, date, location, attendees });
     
     // Get the original appointment before updating
-    const originalAppointment = await collections.appointments?.findOne({ _id: new ObjectId(id) });
+    const originalAppointment = await collections.appointments.findOne({ _id: new ObjectId(id) });
     
     if (!originalAppointment) {
       return res.status(404).json({ error: `Appointment with id ${id} not found` });
@@ -250,7 +278,7 @@ export const updateAppointment = async (req: Request, res: Response) => {
 
     console.log('Final update data:', updateData);
 
-    const result = await collections.appointments?.updateOne(
+    const result = await collections.appointments.updateOne(
       { _id: new ObjectId(id) },
       { $set: updateData }
     );
@@ -267,12 +295,12 @@ export const updateAppointment = async (req: Request, res: Response) => {
                           (title && title !== originalAppointment.title) ||
                           (location && location !== originalAppointment.location);
       
-      if (isReschedule && originalAppointment.userId) {
+      if (isReschedule && originalAppointment.userId && collections.users) {
         try {
-          const user = await collections.users?.findOne({ _id: originalAppointment.userId }) as unknown as User;
+          const user = await collections.users.findOne({ _id: originalAppointment.userId }) as unknown as User;
           if (user) {
             // Get the updated appointment
-            const updatedAppointment = await collections.appointments?.findOne({ _id: new ObjectId(id) });
+            const updatedAppointment = await collections.appointments.findOne({ _id: new ObjectId(id) });
             if (updatedAppointment) {
               const emailSent = await EmailService.sendAppointmentRescheduledEmail(user, originalAppointment, updatedAppointment);
               if (emailSent) {
@@ -307,8 +335,12 @@ export const deleteAppointment = async (req: Request, res: Response) => {
   }
 
   try {
+    if (!collections.appointments) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    
     // Get the appointment before deleting to send email
-    const appointment = await collections.appointments?.findOne({ _id: new ObjectId(id) });
+    const appointment = await collections.appointments.findOne({ _id: new ObjectId(id) });
     
     if (!appointment) {
       return res.status(404).json({ error: `Appointment with id ${id} not found` });
@@ -317,9 +349,9 @@ export const deleteAppointment = async (req: Request, res: Response) => {
     const query = { _id: new ObjectId(id) };
 
     // Send cancellation email if appointment has a user
-    if (appointment.userId) {
+    if (appointment.userId && collections.users) {
       try {
-        const user = await collections.users?.findOne({ _id: appointment.userId }) as unknown as User;
+        const user = await collections.users.findOne({ _id: appointment.userId }) as unknown as User;
         if (user) {
           const emailSent = await EmailService.sendAppointmentCancelledEmail(user, appointment);
           if (emailSent) {
@@ -334,7 +366,7 @@ export const deleteAppointment = async (req: Request, res: Response) => {
       }
     }
 
-    const result = await collections.appointments?.deleteOne(query);
+    const result = await collections.appointments.deleteOne(query);
 
     if (result?.deletedCount && result.deletedCount > 0) {
       res.status(200).json({ message: `Appointment with id ${id} deleted successfully` });

@@ -135,6 +135,15 @@ export const createUser = async (req: Request, res: Response) => {
   console.log('=== CREATE USER DEBUG ===');
   console.log('Request body:', JSON.stringify(req.body, null, 2));
 
+  // Check database connection first
+  if (!collections.users) {
+    console.error('❌ Database not connected - users collection unavailable');
+    return res.status(500).json({ 
+      error: 'Database not connected',
+      message: 'Cannot create user - database connection failed'
+    });
+  }
+
   const { name, phonenumber, phone, email, password, dob, role } = req.body;
   
   // Validate required fields
@@ -147,7 +156,7 @@ export const createUser = async (req: Request, res: Response) => {
 
   // Check if user already exists
   try {
-    const existingUser = await collections.users?.findOne({ email: email.toLowerCase() });
+    const existingUser = await collections.users.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(409).json({
         error: "User already exists",
@@ -196,7 +205,7 @@ export const createUser = async (req: Request, res: Response) => {
   console.log('newUser.phonenumber:', newUser.phonenumber);
 
   try {
-    const result = await collections.users?.insertOne(newUser)
+    const result = await collections.users.insertOne(newUser)
 
     if (result) {
       // Send welcome email to the new user

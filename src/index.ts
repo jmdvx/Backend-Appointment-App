@@ -17,15 +17,21 @@ import { authenticateKey } from "./middleware/auth.middleware";
 
 export const app: Application = express();
 
-// Initialize database with error handling
-initDb().catch((error) => {
-    console.error('❌ Failed to initialize database:', error);
-    console.log('⚠️  Server will continue running but database operations may fail');
-    console.log('🔍 Environment check:');
-    console.log('  - DB_CONN_STRING exists:', !!process.env.DB_CONN_STRING);
-    console.log('  - DB_NAME:', process.env.DB_NAME || 'default');
-    console.log('  - NODE_ENV:', process.env.NODE_ENV || 'not set');
-});
+// Database initialization will be handled by server.ts
+// Export a function to initialize database and wait for it
+export async function initializeDatabase(): Promise<void> {
+    try {
+        await initDb();
+        console.log('✅ Database initialization completed');
+    } catch (error) {
+        console.error('❌ Failed to initialize database:', error);
+        console.log('🔍 Environment check:');
+        console.log('  - DB_CONN_STRING exists:', !!process.env.DB_CONN_STRING);
+        console.log('  - DB_NAME:', process.env.DB_NAME || 'default');
+        console.log('  - NODE_ENV:', process.env.NODE_ENV || 'not set');
+        throw error; // Re-throw to prevent server from starting without database
+    }
+}
 
 // Enable compression for better performance
 app.use(compression({

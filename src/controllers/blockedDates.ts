@@ -109,6 +109,10 @@ export const getBlockedDatesInRange = async (req: Request, res: Response) => {
 // Create new blocked date
 export const createBlockedDate = async (req: Request, res: Response) => {
   try {
+    if (!collections.blockedDates) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    
     const { date, reason, recurringPattern = 'none' } = req.body;
     
     // Validate date format
@@ -117,7 +121,7 @@ export const createBlockedDate = async (req: Request, res: Response) => {
     }
     
     // Check if date is already blocked
-    const existingBlockedDate = await collections.blockedDates?.findOne({ date });
+    const existingBlockedDate = await collections.blockedDates.findOne({ date });
     if (existingBlockedDate) {
       return res.status(409).json({ error: 'Date is already blocked' });
     }
@@ -130,7 +134,7 @@ export const createBlockedDate = async (req: Request, res: Response) => {
       updatedAt: new Date()
     };
     
-    const result = await collections.blockedDates?.insertOne(newBlockedDate);
+    const result = await collections.blockedDates.insertOne(newBlockedDate);
     
     if (result) {
       res.status(201).json({
@@ -158,6 +162,10 @@ export const updateBlockedDate = async (req: Request, res: Response) => {
   }
   
   try {
+    if (!collections.blockedDates) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    
     const { date, reason, recurringPattern } = req.body;
     
     // Validate date format if provided
@@ -167,7 +175,7 @@ export const updateBlockedDate = async (req: Request, res: Response) => {
     
     // Check if updating to a date that's already blocked (by another record)
     if (date) {
-      const existingBlockedDate = await collections.blockedDates?.findOne({ 
+      const existingBlockedDate = await collections.blockedDates.findOne({ 
         date, 
         _id: { $ne: new ObjectId(id) } 
       });
@@ -184,7 +192,7 @@ export const updateBlockedDate = async (req: Request, res: Response) => {
     if (reason) updateData.reason = reason;
     if (recurringPattern) updateData.recurringPattern = recurringPattern;
     
-    const result = await collections.blockedDates?.updateOne(
+    const result = await collections.blockedDates.updateOne(
       { _id: new ObjectId(id) },
       { $set: updateData }
     );
@@ -213,7 +221,11 @@ export const deleteBlockedDate = async (req: Request, res: Response) => {
   }
   
   try {
-    const result = await collections.blockedDates?.deleteOne({ _id: new ObjectId(id) });
+    if (!collections.blockedDates) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    
+    const result = await collections.blockedDates.deleteOne({ _id: new ObjectId(id) });
     
     if (result?.deletedCount && result.deletedCount > 0) {
       res.status(200).json({ message: 'Blocked date deleted successfully' });
@@ -231,12 +243,16 @@ export const deleteBlockedDateByDate = async (req: Request, res: Response) => {
   const { date } = req.params;
   
   try {
+    if (!collections.blockedDates) {
+      return res.status(500).json({ error: 'Database not connected' });
+    }
+    
     // Validate date format
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
     }
     
-    const result = await collections.blockedDates?.deleteOne({ date });
+    const result = await collections.blockedDates.deleteOne({ date });
     
     if (result?.deletedCount && result.deletedCount > 0) {
       res.status(200).json({ message: 'Blocked date deleted successfully' });

@@ -1,4 +1,4 @@
-import { app } from './index';
+import { app, initializeDatabase } from './index';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -33,6 +33,11 @@ async function findAvailablePort(startPort: number): Promise<number> {
 // Start server with port conflict handling
 async function startServer() {
     try {
+        // CRITICAL: Wait for database connection before starting server
+        console.log('🔄 Initializing database connection...');
+        await initializeDatabase();
+        console.log('✅ Database connected successfully, starting server...');
+        
         const availablePort = await findAvailablePort(Number(PORT));
         
         const server = app.listen(availablePort, () => {
@@ -76,6 +81,11 @@ async function startServer() {
 
     } catch (error) {
         console.error('❌ Failed to start server:', error);
+        if (error instanceof Error) {
+            console.error('Error details:', error.message);
+            console.error('Stack trace:', error.stack);
+        }
+        console.error('💥 Server cannot start without database connection. Exiting...');
         process.exit(1);
     }
 }
