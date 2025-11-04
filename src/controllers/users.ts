@@ -122,44 +122,24 @@ export const loginUser = async (req: Request, res: Response) => {
       });
     }
     
-    // CRITICAL SECURITY CHECK #1: Must be explicitly true
-    if (isPasswordValid !== true) {
+    // CRITICAL SECURITY CHECK: Must be explicitly true
+    if (!isPasswordValid || isPasswordValid !== true) {
       console.log(`❌❌❌ LOGIN REJECTED - Invalid password for: ${email} ❌❌❌`);
       console.log(`❌ Password validation result: ${isPasswordValid}`);
       console.log(`❌ Password validation type: ${typeof isPasswordValid}`);
-      console.log(`❌ isPasswordValid !== true: ${isPasswordValid !== true}`);
       return res.status(401).json({ 
         error: "Invalid credentials",
         message: "Email or password is incorrect"
       });
     }
     
-    // CRITICAL SECURITY CHECK #2: Type must be boolean
+    // Additional type safety check (TypeScript knows this is true above, but runtime check)
     if (typeof isPasswordValid !== 'boolean') {
       console.error(`❌❌❌ CRITICAL SECURITY ERROR - Password validation is not boolean: ${typeof isPasswordValid} ❌❌❌`);
       console.error(`❌ Value: ${isPasswordValid}`);
       return res.status(500).json({ 
         error: "Authentication error",
         message: "Password verification failed"
-      });
-    }
-    
-    // CRITICAL SECURITY CHECK #3: Must be exactly true
-    if (isPasswordValid !== true) {
-      console.error(`❌❌❌ CRITICAL SECURITY ERROR - Password validation is not true ❌❌❌`);
-      console.error(`❌ Value: ${isPasswordValid}`);
-      return res.status(401).json({ 
-        error: "Invalid credentials",
-        message: "Email or password is incorrect"
-      });
-    }
-    
-    // TRIPLE CHECK: Final verification before allowing login
-    if (!isPasswordValid || isPasswordValid !== true || typeof isPasswordValid !== 'boolean') {
-      console.error(`❌❌❌ FINAL SECURITY CHECK FAILED - BLOCKING LOGIN ❌❌❌`);
-      return res.status(401).json({ 
-        error: "Invalid credentials",
-        message: "Email or password is incorrect"
       });
     }
     
