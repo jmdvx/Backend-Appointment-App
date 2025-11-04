@@ -244,11 +244,7 @@ export const updateAppointment = async (req: Request, res: Response) => {
     
     const { userId, title, description, date, location, attendees } = req.body;
     
-    console.log('=== UPDATE APPOINTMENT DEBUG ===');
-    console.log('Updating appointment:', id);
-    console.log('Update data:', { userId, title, description, date, location, attendees });
-    
-    // Get the original appointment before updating
+    // Get the original appointment before updating (for email notification)
     const originalAppointment = await collections.appointments.findOne({ _id: new ObjectId(id) });
     
     if (!originalAppointment) {
@@ -256,59 +252,51 @@ export const updateAppointment = async (req: Request, res: Response) => {
     }
     
     const updateData: Partial<Appointment> = {};
-    if (userId) {
-      updateData.userId = new ObjectId(userId);
-      console.log('Setting userId to:', updateData.userId);
-    }
+    if (userId) updateData.userId = new ObjectId(userId);
     if (title) updateData.title = title;
     if (description !== undefined) updateData.description = description;
     if (date) updateData.date = new Date(date);
     if (location) updateData.location = location;
     if (attendees) updateData.attendees = attendees;
 
-    console.log('Final update data:', updateData);
-
     const result = await collections.appointments.updateOne(
       { _id: new ObjectId(id) },
       { $set: updateData }
     );
 
-    console.log('Update result:', result);
-
     if (result?.matchedCount === 0) {
       return res.status(404).json({ error: `Appointment with id ${id} not found` });
     }
 
-    if (result?.modifiedCount && result.modifiedCount > 0) {
-      // Check if this is a reschedule (date/time changed) and send email
-      const isReschedule = (date && new Date(date).getTime() !== new Date(originalAppointment.date).getTime()) ||
-                          (title && title !== originalAppointment.title) ||
-                          (location && location !== originalAppointment.location);
-      
-      if (isReschedule && originalAppointment.userId && collections.users) {
+    if (!result?.modifiedCount || result.modifiedCount === 0) {
+      return res.status(200).json({ message: 'Appointment found but no changes were made' });
+    }
+
+    // Send response immediately
+    res.status(200).json({ message: 'Appointment updated successfully' });
+
+    // Check if this is a reschedule (date/time changed) and send email in background
+    const isReschedule = (date && new Date(date).getTime() !== new Date(originalAppointment.date).getTime()) ||
+                        (title && title !== originalAppointment.title) ||
+                        (location && location !== originalAppointment.location);
+    
+    if (isReschedule && originalAppointment.userId && collections.users) {
+      setImmediate(async () => {
         try {
-          const user = await collections.users.findOne({ _id: originalAppointment.userId }) as unknown as User;
-          if (user) {
-            // Get the updated appointment
-            const updatedAppointment = await collections.appointments.findOne({ _id: new ObjectId(id) });
-            if (updatedAppointment) {
-              const emailSent = await EmailService.sendAppointmentRescheduledEmail(user, originalAppointment, updatedAppointment);
-              if (emailSent) {
-                console.log(`Appointment reschedule email sent to ${user.email}`);
-              } else {
-                console.log(`Failed to send appointment reschedule email to ${user.email}`);
+          if (collections.users && collections.appointments) {
+            const user = await collections.users.findOne({ _id: originalAppointment.userId }) as unknown as User;
+            if (user) {
+              // Get the updated appointment
+              const updatedAppointment = await collections.appointments.findOne({ _id: new ObjectId(id) });
+              if (updatedAppointment) {
+                await EmailService.sendAppointmentRescheduledEmail(user, originalAppointment, updatedAppointment);
               }
             }
           }
         } catch (emailError) {
-          console.error('Error sending appointment reschedule email:', emailError);
-          // Don't fail update if email fails
+          // Silently fail - email is non-critical
         }
-      }
-
-      res.status(200).json({ message: 'Appointment updated successfully' });
-    } else {
-      res.status(400).json({ error: 'No changes made to appointment' });
+      });
     }
   } catch (error) {
     console.error(`Error updating appointment ${id}:`, error);
@@ -329,7 +317,7 @@ export const deleteAppointment = async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Database not connected' });
     }
     
-    // Get the appointment before deleting to send email
+    // Get the appointment before deleting (for email notification)
     const appointment = await collections.appointments.findOne({ _id: new ObjectId(id) });
     
     if (!appointment) {
@@ -337,31 +325,29 @@ export const deleteAppointment = async (req: Request, res: Response) => {
     }
 
     const query = { _id: new ObjectId(id) };
-
-    // Send cancellation email if appointment has a user
-    if (appointment.userId && collections.users) {
-      try {
-        const user = await collections.users.findOne({ _id: appointment.userId }) as unknown as User;
-        if (user) {
-          const emailSent = await EmailService.sendAppointmentCancelledEmail(user, appointment);
-          if (emailSent) {
-            console.log(`Appointment cancellation email sent to ${user.email}`);
-          } else {
-            console.log(`Failed to send appointment cancellation email to ${user.email}`);
-          }
-        }
-      } catch (emailError) {
-        console.error('Error sending appointment cancellation email:', emailError);
-        // Don't fail deletion if email fails
-      }
-    }
-
     const result = await collections.appointments.deleteOne(query);
 
-    if (result?.deletedCount && result.deletedCount > 0) {
-      res.status(200).json({ message: `Appointment with id ${id} deleted successfully` });
-    } else {
-      res.status(404).json({ error: `Appointment with id ${id} not found` });
+    if (!result?.deletedCount || result.deletedCount === 0) {
+      return res.status(404).json({ error: `Appointment with id ${id} not found` });
+    }
+
+    // Send response immediately
+    res.status(200).json({ message: `Appointment with id ${id} deleted successfully` });
+
+    // Send cancellation email in background (non-blocking)
+    if (appointment.userId && collections.users) {
+      setImmediate(async () => {
+        try {
+          if (collections.users) {
+            const user = await collections.users.findOne({ _id: appointment.userId }) as unknown as User;
+            if (user) {
+              await EmailService.sendAppointmentCancelledEmail(user, appointment);
+            }
+          }
+        } catch (emailError) {
+          // Silently fail - email is non-critical
+        }
+      });
     }
   } catch (error) {
     console.error(`Error deleting appointment ${id}:`, error);
