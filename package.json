@@ -17,6 +17,7 @@
     "blocked-dates-admin": "ts-node blocked-dates-admin.ts",
     "reset-admin-password": "ts-node reset-admin-password.ts",
     "reset-to-admin": "ts-node reset-to-single-admin.ts",
+    "create-admin": "ts-node create-admin-user.ts",
     "postinstall": "npm run build"
   },
   "nodemonConfig": {
