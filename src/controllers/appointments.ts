@@ -92,13 +92,7 @@ export const getAppointmentsWithUserDetails = async (req: Request, res: Response
 export const getAppointmentsByUserId = async (req: Request, res: Response) => {
   const userId = req.params.userId;
   
-  console.log('=== GET USER APPOINTMENTS DEBUG ===');
-  console.log('Requested userId:', userId);
-  console.log('userId type:', typeof userId);
-  console.log('Is valid ObjectId:', ObjectId.isValid(userId));
-  
   if (!ObjectId.isValid(userId)) {
-    console.log('ERROR: Invalid user ID format');
     return res.status(400).json({ 
       error: 'Invalid user ID format. Expected MongoDB ObjectId format (e.g., 68f64695199f43daeacbc3f2)',
       received: userId,
@@ -112,11 +106,7 @@ export const getAppointmentsByUserId = async (req: Request, res: Response) => {
     }
     
     const query = { userId: new ObjectId(userId) };
-    console.log('Querying with:', query);
-    
     const appointments = (await collections.appointments.find(query).toArray()) as unknown as Appointment[];
-    console.log('Found appointments:', appointments.length);
-    
     res.status(200).json(appointments);
   } catch (error) {
     console.error(`Error fetching appointments for user ${userId}:`, error);

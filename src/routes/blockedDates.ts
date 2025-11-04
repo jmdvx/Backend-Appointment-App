@@ -11,7 +11,6 @@ import {
   updateBlockedDate,
   deleteBlockedDate,
   deleteBlockedDateByDate,
-  debugBlockedDates,
   // PERMANENT SOLUTION: New bulk operations
   clearAllBlockedDates,
   blockMultipleDates,
@@ -24,9 +23,6 @@ const router: Router = express.Router();
 
 // Get all blocked dates
 router.get('/', getAllBlockedDates);
-
-// Debug endpoint for troubleshooting
-router.get('/debug', debugBlockedDates);
 
 // Get blocked dates for specific month
 router.get('/month/:year/:month', getBlockedDatesByMonth);

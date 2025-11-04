@@ -615,12 +615,6 @@ export class EmailService {
   // Send welcome email to new user
   static async sendWelcomeEmail(user: User): Promise<boolean> {
     try {
-      console.log('=== EMAIL DEBUG ===');
-      console.log('User data for email:', JSON.stringify(user, null, 2));
-      console.log('Phone number in email:', user.phonenumber);
-      console.log('User.phonenumber type:', typeof user.phonenumber);
-      console.log('User.phonenumber value:', JSON.stringify(user.phonenumber));
-      
       const template = emailTemplates.welcome(user);
       
       const mailOptions = {
@@ -631,8 +625,7 @@ export class EmailService {
         text: template.text
       };
 
-      const result = await transporter.sendMail(mailOptions);
-      console.log('Welcome email sent successfully:', result.messageId);
+      await transporter.sendMail(mailOptions);
       return true;
     } catch (error) {
       console.error('Error sending welcome email:', error);

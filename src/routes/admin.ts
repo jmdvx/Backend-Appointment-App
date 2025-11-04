@@ -84,15 +84,11 @@ router.get('/appointments', async (req, res) => {
       return res.status(500).json({ error: 'Database not connected' });
     }
 
-    console.log('=== ADMIN APPOINTMENTS DEBUG ===');
-    
     // Get all appointments
     const appointments = await collections.appointments.find({}).toArray();
-    console.log('Found appointments:', appointments.length);
     
     // Get all users for lookup
     const users = await collections.users.find({}).toArray();
-    console.log('Found users:', users.length);
     
     // Create user lookup map
     const userMap = new Map();
@@ -102,15 +98,10 @@ router.get('/appointments', async (req, res) => {
     
     // Enrich appointments with user details
     const enrichedAppointments = appointments.map(appointment => {
-      console.log('Processing appointment:', appointment._id);
-      console.log('Appointment userId:', appointment.userId);
-      console.log('Appointment attendees:', appointment.attendees);
-      
       // Get user details if userId exists
       let userDetails = null;
       if (appointment.userId) {
         userDetails = userMap.get(appointment.userId.toString());
-        console.log('Found user details:', userDetails ? 'YES' : 'NO');
       }
       
       // Extract phone number from attendees or user details
@@ -121,17 +112,13 @@ router.get('/appointments', async (req, res) => {
         const primaryAttendee = appointment.attendees[0];
         if (primaryAttendee.phone) {
           phoneNumber = primaryAttendee.phone;
-          console.log('Phone from attendee:', phoneNumber);
         }
       }
       
       // If no phone in attendees, try user details
       if (phoneNumber === 'N/A' && userDetails) {
         phoneNumber = userDetails.phonenumber || 'N/A';
-        console.log('Phone from user:', phoneNumber);
       }
-      
-      console.log('Final phone number:', phoneNumber);
       
       return {
         _id: appointment._id,
@@ -151,8 +138,6 @@ router.get('/appointments', async (req, res) => {
         userDateJoined: userDetails ? userDetails.dateJoined : null
       };
     });
-    
-    console.log('Enriched appointments count:', enrichedAppointments.length);
     
     res.json(enrichedAppointments);
   } catch (error) {

@@ -71,7 +71,6 @@ app.use((req, res, next) => {
   } else {
     // For development/testing, allow all origins
     res.header('Access-Control-Allow-Origin', '*');
-    console.log('CORS: Allowing origin:', origin);
   }
   
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
@@ -81,7 +80,6 @@ app.use((req, res, next) => {
   
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    console.log('CORS: Handling OPTIONS preflight request');
     res.status(200).end();
     return;
   }
@@ -91,23 +89,12 @@ app.use((req, res, next) => {
 
 // Additional CORS middleware as backup
 app.use(cors({
-  origin: true, // Allow all origins for now
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'Accept', 'Origin', 'X-Requested-With'],
   optionsSuccessStatus: 200
 }));
-
-// Debug middleware to log CORS-related headers
-app.use((req, res, next) => {
-  console.log('=== REQUEST DEBUG ===');
-  console.log('Origin:', req.headers.origin);
-  console.log('Method:', req.method);
-  console.log('URL:', req.url);
-  console.log('User-Agent:', req.headers['user-agent']);
-  console.log('========================');
-  next();
-});
 
 // Global error handler
 app.use((err: any, req: any, res: any, next: any) => {
@@ -181,37 +168,7 @@ app.get("/health", async (_req: Request, res: Response) => {
     }
 });
 
-// Database test endpoint for debugging
-app.get("/test-db", async (_req: Request, res: Response) => {
-    try {
-        const { collections } = await import('./database');
-        
-        if (!collections.users) {
-            return res.status(500).json({
-                error: "Database not connected",
-                message: "Users collection is not available"
-            });
-        }
-        
-        // Try to count users
-        const userCount = await collections.users.countDocuments();
-        
-        res.json({
-            status: "Database connected",
-            userCount: userCount,
-            collections: {
-                users: !!collections.users,
-                appointments: !!collections.appointments,
-                blockedDates: !!collections.blockedDates
-            }
-        });
-    } catch (error) {
-        res.status(500).json({
-            error: "Database test failed",
-            message: error instanceof Error ? error.message : "Unknown error"
-        });
-    }
-});
+// Database test endpoint removed - use /health instead for production monitoring
 
 // Database health check function
 async function checkDatabaseHealth() {

@@ -270,11 +270,7 @@ export const deleteBlockedDateByDate = async (req: Request, res: Response) => {
 // Clear ALL blocked dates (permanent fix for sync issues)
 export const clearAllBlockedDates = async (req: Request, res: Response) => {
   try {
-    console.log('=== CLEARING ALL BLOCKED DATES ===');
-    
     const result = await collections.blockedDates?.deleteMany({});
-    
-    console.log(`Deleted ${result?.deletedCount || 0} blocked dates`);
     
     res.status(200).json({
       message: 'All blocked dates cleared successfully',
@@ -302,9 +298,6 @@ export const blockMultipleDates = async (req: Request, res: Response) => {
         return res.status(400).json({ error: `Invalid date format: ${date}. Use YYYY-MM-DD` });
       }
     }
-    
-    console.log('=== BLOCKING MULTIPLE DATES ===');
-    console.log('Dates to block:', dates);
     
     const blockedDates: BlockedDate[] = dates.map(date => ({
       date,
@@ -360,8 +353,6 @@ export const getBlockedDatesSummary = async (req: Request, res: Response) => {
       syncStatus: 'current'
     };
     
-    console.log('=== BLOCKED DATES SUMMARY ===');
-    console.log('Summary:', JSON.stringify(summary, null, 2));
     
     res.status(200).json(summary);
   } catch (error) {
@@ -375,7 +366,6 @@ export const validateBlockedDatesConsistency = async (req: Request, res: Respons
   try {
     const { start, end } = req.query;
     
-    console.log('=== VALIDATING BLOCKED DATES CONSISTENCY ===');
     
     // Get all blocked dates
     const allBlockedDates = (await collections.blockedDates?.find({}).toArray()) as unknown as BlockedDate[];
@@ -423,7 +413,6 @@ export const validateBlockedDatesConsistency = async (req: Request, res: Respons
 // Admin endpoint to force sync blocked dates
 export const forceSyncBlockedDates = async (req: Request, res: Response) => {
   try {
-    console.log('=== FORCING BLOCKED DATES SYNC ===');
     
     // Get current state
     const allBlockedDates = (await collections.blockedDates?.find({}).toArray()) as unknown as BlockedDate[];
@@ -462,52 +451,4 @@ export const forceSyncBlockedDates = async (req: Request, res: Response) => {
   }
 };
 
-// Debug endpoint for frontend troubleshooting
-export const debugBlockedDates = async (req: Request, res: Response) => {
-  try {
-    const { start, end } = req.query;
-    
-    console.log('=== DEBUG BLOCKED DATES ENDPOINT ===');
-    console.log('Requested range:', { start, end });
-    
-    // Get all blocked dates
-    const allBlockedDates = (await collections.blockedDates?.find({}).toArray()) as unknown as BlockedDate[];
-    
-    // Get blocked dates in range if range provided
-    let rangeBlockedDates: BlockedDate[] = [];
-    if (start && end) {
-      rangeBlockedDates = (await collections.blockedDates?.find({
-        date: {
-          $gte: start,
-          $lte: end
-        }
-      }).toArray()) as unknown as BlockedDate[];
-    }
-    
-    // Check specific dates
-    const oct21 = allBlockedDates.find(bd => bd.date === '2025-10-21');
-    const oct22 = allBlockedDates.find(bd => bd.date === '2025-10-22');
-    const oct23 = allBlockedDates.find(bd => bd.date === '2025-10-23');
-    const oct24 = allBlockedDates.find(bd => bd.date === '2025-10-24');
-    
-    const debugInfo = {
-      totalBlockedDates: allBlockedDates.length,
-      allBlockedDates: allBlockedDates.map(bd => ({ date: bd.date, reason: bd.reason })),
-      rangeBlockedDates: rangeBlockedDates.map(bd => ({ date: bd.date, reason: bd.reason })),
-      specificDates: {
-        '2025-10-21': oct21 ? { blocked: true, reason: oct21.reason } : { blocked: false },
-        '2025-10-22': oct22 ? { blocked: true, reason: oct22.reason } : { blocked: false },
-        '2025-10-23': oct23 ? { blocked: true, reason: oct23.reason } : { blocked: false },
-        '2025-10-24': oct24 ? { blocked: true, reason: oct24.reason } : { blocked: false }
-      },
-      requestedRange: { start, end }
-    };
-    
-    console.log('Debug info:', JSON.stringify(debugInfo, null, 2));
-    
-    res.status(200).json(debugInfo);
-  } catch (error) {
-    console.error('Error in debug endpoint:', error);
-    res.status(500).json({ error: 'Failed to get debug info' });
-  }
-};
+// Debug endpoint removed - use /summary or /validate endpoints instead
