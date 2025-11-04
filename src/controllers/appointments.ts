@@ -165,16 +165,10 @@ export const createAppointment = async (req: Request, res: Response) => {
     
     const { userId, title, description, date, location, attendees } = req.body;
     
-    console.log('=== CREATE APPOINTMENT DEBUG ===');
-    console.log('Request body:', req.body);
-    console.log('userId from request:', userId);
-    console.log('userId type:', typeof userId);
-    
     let finalUserId = userId;
     
     // Handle walk-in bookings: If no userId provided, allow booking without user account
     if (!userId || userId === '000000000000000000000000' || userId === null) {
-      console.log('No userId provided - creating walk-in appointment without user account');
       finalUserId = null; // Allow appointments without user accounts
     } else if (ObjectId.isValid(finalUserId)) {
       // Check if the user is banned before allowing appointment creation
@@ -200,38 +194,34 @@ export const createAppointment = async (req: Request, res: Response) => {
       attendees: attendees || []
     };
 
-    console.log('New appointment object:', newAppointment);
-
     const result = await collections.appointments.insertOne(newAppointment);
 
-    if (result) {
-      console.log('Appointment created successfully with ID:', result.insertedId);
-      
-      // Send appointment confirmation email if user exists
-      if (finalUserId && ObjectId.isValid(finalUserId) && collections.users) {
+    if (!result || !result.insertedId) {
+      return res.status(500).json({ error: 'Failed to create appointment' });
+    }
+
+    // Send response immediately
+    res.status(201).json({ 
+      message: 'Appointment created successfully',
+      id: result.insertedId,
+      _id: result.insertedId,
+      userId: finalUserId || null
+    });
+
+    // Send appointment confirmation email in background (non-blocking)
+    if (finalUserId && ObjectId.isValid(finalUserId) && collections.users) {
+      setImmediate(async () => {
         try {
-          const user = await collections.users.findOne({ _id: new ObjectId(finalUserId) }) as unknown as User;
-          if (user) {
-            const emailSent = await EmailService.sendAppointmentConfirmation(user, newAppointment);
-            if (emailSent) {
-              console.log(`Appointment confirmation email sent to ${user.email}`);
-            } else {
-              console.log(`Failed to send appointment confirmation email to ${user.email}`);
+          if (collections.users) {
+            const user = await collections.users.findOne({ _id: new ObjectId(finalUserId) }) as unknown as User;
+            if (user) {
+              await EmailService.sendAppointmentConfirmation(user, newAppointment);
             }
           }
         } catch (emailError) {
-          console.error('Error sending appointment confirmation email:', emailError);
-          // Don't fail appointment creation if email fails
+          // Silently fail - email is non-critical
         }
-      }
-
-      res.status(201).json({ 
-        message: 'Appointment created successfully',
-        id: result.insertedId,
-        userId: finalUserId || null
       });
-    } else {
-      res.status(500).json({ error: 'Failed to create appointment' });
     }
   } catch (error) {
     console.error('Error creating appointment:', error);
