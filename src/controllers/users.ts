@@ -43,31 +43,17 @@ export const loginUser = async (req: Request, res: Response) => {
     }
     
     // CRITICAL: Validate password hash format (bcrypt hashes start with $2a$, $2b$, or $2y$)
-    if (!user.password.startsWith('$2')) {
-      console.error(`❌❌❌ SECURITY ALERT: Invalid password hash format for: ${email} ❌❌❌`);
-      console.error('❌ Password hash does not appear to be a valid bcrypt hash');
-      console.error('❌ Hash value (full):', user.password);
-      console.error('❌ Hash type:', typeof user.password);
-      console.error('❌ Hash length:', user.password?.length);
+    if (!user.password.startsWith('$2') || user.password.length !== 60) {
+      console.error(`❌ Invalid password hash format for: ${email}`);
       return res.status(500).json({ 
         error: "Account configuration error",
         message: "User account password is not properly configured. Please contact support."
       });
     }
     
-    // CRITICAL: Verify hash is a proper bcrypt hash (should be 60 characters for bcrypt)
-    if (user.password.length < 50 || user.password.length > 60) {
-      console.error(`❌❌❌ SECURITY ALERT: Suspicious password hash length for: ${email} ❌❌❌`);
-      console.error(`❌ Hash length: ${user.password.length} (expected 60 for bcrypt)`);
-      return res.status(500).json({ 
-        error: "Account configuration error",
-        message: "User account password format is invalid. Please contact support."
-      });
-    }
-    
-    // CRITICAL: Ensure password hash is not empty or plain text
+    // CRITICAL: Ensure password hash is not plain text
     if (user.password === password) {
-      console.error(`❌❌❌ CRITICAL SECURITY BREACH: Password stored in plain text for: ${email} ❌❌❌`);
+      console.error(`❌ Security breach: Password stored in plain text for: ${email}`);
       return res.status(500).json({ 
         error: "Security error",
         message: "Password security issue detected. Please contact support."
@@ -81,11 +67,6 @@ export const loginUser = async (req: Request, res: Response) => {
     }
     
     // CRITICAL SECURITY: Password validation - ABSOLUTE BLOCK ON FAILURE
-    console.log(`🔐 SECURITY CHECK: Attempting password verification for: ${email}`);
-    console.log(`📝 Password provided: ${password ? 'YES (length: ' + password.length + ')' : 'NO'}`);
-    console.log(`🔑 Password hash exists: ${user.password ? 'YES (starts with: ' + user.password.substring(0, 7) + '...)' : 'NO'}`);
-    console.log(`🔑 Password hash length: ${user.password?.length || 0}`);
-    
     // CRITICAL: Initialize as false - MUST be explicitly set to true
     let isPasswordValid: boolean = false;
     
@@ -94,27 +75,15 @@ export const loginUser = async (req: Request, res: Response) => {
       // It returns false if password doesn't match, true only if it matches exactly
       const comparisonResult = await bcrypt.compare(password, user.password);
       
-      // CRITICAL: Log the exact result
-      console.log(`🔍 BCRYPT COMPARISON RESULT: ${comparisonResult}`);
-      console.log(`🔍 Result type: ${typeof comparisonResult}`);
-      console.log(`🔍 Result === true: ${comparisonResult === true}`);
-      console.log(`🔍 Result !== false: ${comparisonResult !== false}`);
-      
       // SECURITY: Only accept if result is EXPLICITLY true (boolean true)
       if (comparisonResult === true && typeof comparisonResult === 'boolean') {
         isPasswordValid = true;
-        console.log(`✅ Password comparison returned TRUE - password is valid`);
       } else {
         isPasswordValid = false;
-        console.log(`❌ Password comparison returned FALSE or non-boolean - password is INVALID`);
-        console.log(`❌ Comparison result value: ${comparisonResult}`);
-        console.log(`❌ Comparison result type: ${typeof comparisonResult}`);
       }
     } catch (bcryptError) {
       // CRITICAL: Any error in bcrypt comparison means authentication FAILS
-      console.error(`❌ CRITICAL: Password comparison ERROR for ${email}:`, bcryptError);
-      console.error('❌ Password hash in database might be invalid or corrupted');
-      console.error('❌ Hash value (first 20 chars):', user.password?.substring(0, 20));
+      console.error(`❌ Password comparison ERROR for ${email}:`, bcryptError);
       isPasswordValid = false;
       return res.status(500).json({ 
         error: "Authentication error",
@@ -124,31 +93,24 @@ export const loginUser = async (req: Request, res: Response) => {
     
     // CRITICAL SECURITY CHECK: Must be explicitly true
     if (!isPasswordValid || isPasswordValid !== true) {
-      console.log(`❌❌❌ LOGIN REJECTED - Invalid password for: ${email} ❌❌❌`);
-      console.log(`❌ Password validation result: ${isPasswordValid}`);
-      console.log(`❌ Password validation type: ${typeof isPasswordValid}`);
+      console.log(`❌ Login rejected - Invalid password for: ${email}`);
       return res.status(401).json({ 
         error: "Invalid credentials",
         message: "Email or password is incorrect"
       });
     }
     
-    // Additional type safety check (TypeScript knows this is true above, but runtime check)
+    // Additional type safety check
     if (typeof isPasswordValid !== 'boolean') {
-      console.error(`❌❌❌ CRITICAL SECURITY ERROR - Password validation is not boolean: ${typeof isPasswordValid} ❌❌❌`);
-      console.error(`❌ Value: ${isPasswordValid}`);
+      console.error(`❌ Security error - Password validation type mismatch`);
       return res.status(500).json({ 
         error: "Authentication error",
         message: "Password verification failed"
       });
     }
     
-    console.log(`✅✅✅ LOGIN APPROVED - Password verified correctly for: ${email} ✅✅✅`);
-    
     // Return user info (without password) - NO TOKEN GENERATED HERE
     const { password: _, ...userWithoutPassword } = user;
-    
-    console.log(`📤 Sending login response for: ${email}`);
     
     // Send login response
     res.status(200).json({
