@@ -194,9 +194,6 @@ export const getUserById = async (req: Request, res: Response) => {
 export const createUser = async (req: Request, res: Response) => {
   // create a new user in the database - SECURE REGISTRATION
 
-  console.log('=== CREATE USER (REGISTRATION) ===');
-  console.log('📝 Registration attempt');
-
   // Check database connection first
   if (!collections.users) {
     console.error('❌ Database not connected - users collection unavailable');
@@ -210,7 +207,6 @@ export const createUser = async (req: Request, res: Response) => {
   
   // SECURITY: Validate required fields
   if (!name || !email || !password || (!phonenumber && !phone)) {
-    console.log('❌ Registration failed - Missing required fields');
     return res.status(400).json({
       error: "Missing required fields",
       message: "Name, email, password, and phone number are required"
@@ -219,47 +215,19 @@ export const createUser = async (req: Request, res: Response) => {
 
   // SECURITY: Normalize and validate email
   const normalizedEmail = email.toLowerCase().trim();
-  if (!normalizedEmail || normalizedEmail.length === 0) {
-    console.log('❌ Registration failed - Invalid email format');
-    return res.status(400).json({
-      error: "Invalid email",
-      message: "Email address is required and must be valid"
-    });
-  }
-
-  // SECURITY: Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(normalizedEmail)) {
-    console.log(`❌ Registration failed - Invalid email format: ${normalizedEmail}`);
+  if (!normalizedEmail || !emailRegex.test(normalizedEmail)) {
     return res.status(400).json({
       error: "Invalid email format",
       message: "Please provide a valid email address"
     });
   }
 
-  // SECURITY: Validate password strength
-  if (!password || typeof password !== 'string') {
-    console.log('❌ Registration failed - Password is required');
-    return res.status(400).json({
-      error: "Password required",
-      message: "Password must be provided"
-    });
-  }
-
-  // SECURITY: Password strength requirements
-  if (password.length < 8) {
-    console.log('❌ Registration failed - Password too short');
+  // SECURITY: Password validation
+  if (!password || typeof password !== 'string' || password.length < 8 || password.length > 128) {
     return res.status(400).json({
       error: "Password too weak",
-      message: "Password must be at least 8 characters long"
-    });
-  }
-
-  if (password.length > 128) {
-    console.log('❌ Registration failed - Password too long');
-    return res.status(400).json({
-      error: "Password too long",
-      message: "Password must be less than 128 characters"
+      message: "Password must be between 8 and 128 characters long"
     });
   }
 
@@ -269,7 +237,6 @@ export const createUser = async (req: Request, res: Response) => {
   const hasNumber = /\d/.test(password);
   
   if (!hasLowerCase || !hasUpperCase || !hasNumber) {
-    console.log('❌ Registration failed - Password does not meet complexity requirements');
     return res.status(400).json({
       error: "Password too weak",
       message: "Password must contain at least one lowercase letter, one uppercase letter, and one number"
@@ -279,7 +246,6 @@ export const createUser = async (req: Request, res: Response) => {
   // SECURITY: Prevent common weak passwords
   const commonPasswords = ['password', 'password123', '12345678', 'admin123', 'qwerty123'];
   if (commonPasswords.includes(password.toLowerCase())) {
-    console.log('❌ Registration failed - Common password detected');
     return res.status(400).json({
       error: "Password too weak",
       message: "This password is too common. Please choose a stronger password"
@@ -289,7 +255,6 @@ export const createUser = async (req: Request, res: Response) => {
   // SECURITY: Sanitize name input
   const sanitizedName = name.trim();
   if (!sanitizedName || sanitizedName.length === 0 || sanitizedName.length > 100) {
-    console.log('❌ Registration failed - Invalid name');
     return res.status(400).json({
       error: "Invalid name",
       message: "Name must be between 1 and 100 characters"
@@ -297,11 +262,7 @@ export const createUser = async (req: Request, res: Response) => {
   }
 
   // SECURITY: Prevent admin role assignment via registration
-  // Only allow "user" role for new registrations, admin must be set manually
   const userRole = role === "admin" ? "user" : (role || "user");
-  if (role === "admin") {
-    console.log('⚠️ Attempt to register as admin blocked - role set to user');
-  }
 
   // SECURITY: Check if user already exists (case-insensitive)
   try {
@@ -309,7 +270,6 @@ export const createUser = async (req: Request, res: Response) => {
       email: normalizedEmail 
     });
     if (existingUser) {
-      console.log(`❌ Registration failed - User already exists: ${normalizedEmail}`);
       return res.status(409).json({
         error: "User already exists",
         message: "An account with this email already exists"
@@ -320,45 +280,31 @@ export const createUser = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal server error" });
   }
   
+  // SECURITY: Validate and sanitize phone number
+  let phoneNumber = phonenumber || phone;
+  const phoneRegex = /^08[3-9]\d{7,8}$/;
+  
+  if (!phoneNumber || !phoneRegex.test(phoneNumber)) {
+    return res.status(400).json({
+      error: "Invalid phone number",
+      message: "Phone number must be a valid Irish mobile number (e.g., 0831234567)"
+    });
+  }
+  
   // SECURITY: Hash the password with increased salt rounds
   const saltRounds = 12;
   let hashedPassword: string;
   try {
     hashedPassword = await bcrypt.hash(password, saltRounds);
-    console.log('✅ Password hashed successfully');
+    if (!hashedPassword || !hashedPassword.startsWith('$2')) {
+      return res.status(500).json({ 
+        error: "Password processing error",
+        message: "Failed to securely process password"
+      });
+    }
   } catch (error) {
     console.error('❌ Error hashing password:', error);
     return res.status(500).json({ error: "Error processing password" });
-  }
-
-  // SECURITY: Verify hash was created successfully
-  if (!hashedPassword || !hashedPassword.startsWith('$2')) {
-    console.error('❌ Password hash verification failed - hash is invalid');
-    return res.status(500).json({ 
-      error: "Password processing error",
-      message: "Failed to securely process password"
-    });
-  }
-  
-  // SECURITY: Validate and sanitize phone number
-  let phoneNumber = phonenumber || phone;
-  
-  if (!phoneNumber || phoneNumber === '' || phoneNumber === null || phoneNumber === undefined) {
-    console.log('❌ Registration failed - Phone number required');
-    return res.status(400).json({
-      error: "Phone number required",
-      message: "A valid Irish mobile number is required"
-    });
-  }
-
-  // SECURITY: Validate phone number format (Irish mobile)
-  const phoneRegex = /^08[3-9]\d{7,8}$/;
-  if (!phoneRegex.test(phoneNumber)) {
-    console.log(`❌ Registration failed - Invalid phone number format: ${phoneNumber}`);
-    return res.status(400).json({
-      error: "Invalid phone number",
-      message: "Phone number must be a valid Irish mobile number (e.g., 0831234567)"
-    });
   }
   
   // SECURITY: Create user object with sanitized values
@@ -366,48 +312,33 @@ export const createUser = async (req: Request, res: Response) => {
     name: sanitizedName, 
     phonenumber: phoneNumber, 
     email: normalizedEmail, 
-    password: hashedPassword, // Already verified as valid bcrypt hash
+    password: hashedPassword,
     dob: dob ? new Date(dob) : undefined,
-    role: userRole, // Always "user" for registrations, admin blocked
+    role: userRole,
     dateJoined: new Date(), 
     lastUpdated: new Date(),
-    isBanned: false // New users are not banned by default
+    isBanned: false
   }
-  
-  console.log('✅ User object created successfully');
-  console.log(`📧 Email: ${newUser.email}`);
-  console.log(`👤 Name: ${newUser.name}`);
-  console.log(`📱 Phone: ${newUser.phonenumber}`);
-  console.log(`🔐 Role: ${newUser.role}`);
-  console.log(`🔑 Password hash verified: ${newUser.password.startsWith('$2')}`);
 
   // SECURITY: Insert user into database
   try {
-    console.log('💾 Inserting user into database...');
     const result = await collections.users.insertOne(newUser);
 
     if (!result || !result.insertedId) {
-      console.error('❌ Failed to create user - Database insertion returned no result');
       return res.status(500).json({ 
         error: "Failed to create user",
         message: "Database operation failed"
       });
     }
 
-    console.log(`✅ User created successfully with ID: ${result.insertedId}`);
-
-    // Send welcome email (non-blocking - don't fail registration if email fails)
-    try {
-      const emailSent = await EmailService.sendWelcomeEmail(newUser);
-      if (emailSent) {
-        console.log(`✅ Welcome email sent to ${newUser.email}`);
-      } else {
-        console.log(`⚠️ Failed to send welcome email to ${newUser.email} (non-critical)`);
+    // Send welcome email in background (non-blocking)
+    setImmediate(async () => {
+      try {
+        await EmailService.sendWelcomeEmail(newUser);
+      } catch (emailError) {
+        // Silently fail - email is non-critical
       }
-    } catch (emailError) {
-      console.error('⚠️ Error sending welcome email (non-critical):', emailError);
-      // Don't fail user creation if email fails
-    }
+    });
 
     // SECURITY: Return user info WITHOUT password
     const userResponse = {
@@ -419,7 +350,6 @@ export const createUser = async (req: Request, res: Response) => {
       dateJoined: newUser.dateJoined
     };
 
-    console.log('✅ Registration completed successfully');
     res.status(201).location(`${result.insertedId}`).json({ 
       message: "User registered successfully",
       userId: result.insertedId,
@@ -431,20 +361,17 @@ export const createUser = async (req: Request, res: Response) => {
     if (error instanceof Error) {
       // SECURITY: Handle duplicate key errors (race condition protection)
       if (error.message.includes('duplicate key') || error.message.includes('E11000')) {
-        console.log(`❌ Registration failed - Duplicate email detected: ${normalizedEmail}`);
         return res.status(409).json({
           error: "User already exists",
           message: "An account with this email already exists"
         });
       }
-      console.error(`❌ Database error: ${error.message}`);
       res.status(500).json({ 
         error: "Failed to create user",
         message: "An error occurred during registration"
       });
     }
     else {
-      console.error('❌ Unknown error during user creation');
       res.status(500).json({ 
         error: "Failed to create user",
         message: "An unexpected error occurred"
